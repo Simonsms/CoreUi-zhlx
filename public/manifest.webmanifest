@@ -1,7 +1,7 @@
 {
-  "name": "AionUi",
-  "short_name": "AionUi",
-  "description": "AionUi WebUI for mobile and desktop browsers.",
+  "name": "zhlxUi",
+  "short_name": "zhlxUi",
+  "description": "zhlxUi - 中核华辉 AI 决策支持协作平台",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

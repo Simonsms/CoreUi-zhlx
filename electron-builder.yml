@@ -1,12 +1,12 @@
-appId: com.aionui.app
-productName: AionUi
-executableName: AionUi
-copyright: Copyright © 2024 AionUi
+appId: com.zhlxui.app
+productName: zhlxUi
+executableName: zhlxUi
+copyright: Copyright © 2024 zhlxUi
 
 protocols:
-  - name: AionUi Protocol
+  - name: zhlxUi Protocol
     schemes:
-      - aionui
+      - zhlxui
 
 asar:
   smartUnpack: true
