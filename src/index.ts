@@ -716,6 +716,12 @@ app.on('before-quit', async () => {
     // Stop all active team sessions (TCP servers + child processes)
     await disposeAllTeamSessions().catch((err) => console.error('[App] Failed to dispose team sessions:', err));
 
+    // Stop decision module TCP server
+    try {
+      const { stopDecisionModule } = await import('@process/decision/init');
+      await stopDecisionModule();
+    } catch { /* decision module not initialized */ }
+
     // Shutdown Channel subsystem
     try {
       const { getChannelManager } = await import('@process/channels');

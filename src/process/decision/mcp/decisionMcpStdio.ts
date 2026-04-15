@@ -138,7 +138,7 @@ createDecisionTool(server, 'decision_add_candidate', '添加候选方案', { ses
 createDecisionTool(server, 'decision_set_dimensions', '设置评估维度', { sessionId: z.string().describe('决策会话 ID'), dimensions: z.array(z.object({ name: z.string(), weight: z.number(), description: z.string().optional() })).describe('维度列表') }, DECISION_MCP_PORT, DECISION_MCP_TOKEN);
 
 // 方案评分
-createDecisionTool(server, 'decision_score_candidate', '为候选方案评分', { sessionId: z.string().optional().describe('决策会话 ID'), candidateId: z.string().describe('候选方案 ID'), scores: z.record(z.object({ value: z.number(), reasoning: z.string() })).describe('评分') }, DECISION_MCP_PORT, DECISION_MCP_TOKEN);
+createDecisionTool(server, 'decision_score_candidate', '为候选方案评分', { sessionId: z.string().describe('决策会话 ID'), candidateId: z.string().describe('候选方案 ID'), scores: z.record(z.object({ value: z.number(), reasoning: z.string() })).describe('评分') }, DECISION_MCP_PORT, DECISION_MCP_TOKEN);
 
 // 决策建议
 createDecisionTool(server, 'decision_create_recommendation', '生成决策建议', { sessionId: z.string().describe('决策会话 ID'), recommendedOptionId: z.string().describe('推荐方案 ID'), reasoning: z.string().describe('推荐理由'), alternativeIds: z.array(z.string()).optional().describe('备选方案 ID'), pendingItems: z.array(z.string()).optional().describe('待确认事项'), nextSteps: z.array(z.string()).optional().describe('下一步行动') }, DECISION_MCP_PORT, DECISION_MCP_TOKEN);
@@ -154,7 +154,7 @@ createDecisionTool(server, 'decision_check_completion', '检查阶段完成条�
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.stderr.write(`[decision-mcp-stdio] MCP server ready with ${12} tools\n`);
+  process.stderr.write(`[decision-mcp-stdio] MCP server ready\n`);
 }
 
 main().catch((err) => {

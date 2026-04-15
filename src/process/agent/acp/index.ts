@@ -43,6 +43,7 @@ import { buildAcpModelInfo } from './modelInfo';
 import { buildBuiltinAcpSessionMcpServers, buildTeamMcpServer, type AcpSessionMcpServer } from './mcpSessionConfig';
 import { getClaudeModel } from './utils';
 import { getTeamGuideStdioConfig } from '@process/team/mcp/guide/teamGuideSingleton';
+import { getDecisionStdioConfig } from '@process/decision/init';
 import { shouldInjectTeamGuideMcp } from '@process/team/prompts/teamGuideCapability.ts';
 import { waitForMcpReady } from '@process/team/mcpReadiness';
 
@@ -1620,6 +1621,15 @@ export class AcpAgent {
             ],
           };
           servers.push(buildTeamMcpServer(configWithBackend)!);
+        }
+      }
+
+      // Inject Decision Workbench MCP server (available to all ACP sessions)
+      const decisionStdioConfig = getDecisionStdioConfig();
+      if (decisionStdioConfig) {
+        const decisionServer = buildTeamMcpServer(decisionStdioConfig);
+        if (decisionServer) {
+          servers.push(decisionServer);
         }
       }
 

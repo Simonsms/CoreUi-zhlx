@@ -259,18 +259,19 @@ export class DecisionMcpTools {
       inputSchema: {
         type: 'object',
         properties: {
-          sessionId: { type: 'string', description: '决策会话 ID（用于事件通知）' },
+          sessionId: { type: 'string', description: '决策会话 ID' },
           candidateId: { type: 'string', description: '候选方案 ID' },
           scores: { type: 'object', description: '评分 { dimensionId: { value: number, reasoning: string } }' },
         },
-        required: ['candidateId', 'scores'],
+        required: ['sessionId', 'candidateId', 'scores'],
       },
       handler: async (args) => {
+        const sessionId = requireString(args, 'sessionId');
         const candidateId = requireString(args, 'candidateId');
         const scores = args.scores as Record<string, { value: number; reasoning: string }>;
         if (!scores || typeof scores !== 'object') throw new Error('scores must be an object');
         const updated = await this.service.updateCandidate(candidateId, { scores });
-        this.emitChange(optionalString(args, 'sessionId'), 'candidate_updated', candidateId);
+        this.emitChange(sessionId, 'candidate_updated', candidateId);
         return updated;
       },
     });
