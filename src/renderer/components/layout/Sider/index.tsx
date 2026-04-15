@@ -11,6 +11,7 @@ import { SiderToolbar, SiderSearchEntry, SiderScheduledEntry } from './SiderNav'
 import SiderFooter from './SiderFooter';
 import CronJobSiderSection from './CronJobSiderSection';
 import TeamSiderSection from './TeamSiderSection';
+import DecisionSiderSection from '@renderer/pages/decision/components/DecisionSiderSection';
 import siderStyles from './Sider.module.css';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('@renderer/pages/conversation/GroupedHistory'));
@@ -165,6 +166,8 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 siderTooltipProps={siderTooltipProps}
                 onSessionClick={onSessionClick}
               />
+              {/* Decision workbench */}
+              <DecisionSiderSection collapsed={collapsed} />
               {/* Scheduled section */}
               {!collapsed && (
                 <CronJobSiderSection jobs={cronJobs} pathname={pathname} onNavigate={handleCronNavigate} />
