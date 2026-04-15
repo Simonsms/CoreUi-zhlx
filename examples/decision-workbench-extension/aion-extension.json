@@ -1,0 +1,80 @@
+{
+  "name": "decision-workbench",
+  "displayName": "决策支持工作台",
+  "version": "1.0.0",
+  "description": "渐进式 AI 决策支持系统 — 问题定义、调研发散、方案评估、决策收敛四阶段工作流",
+  "author": "zhlxUi",
+  "engine": {
+    "aionui": "^1.0.0"
+  },
+  "permissions": {
+    "storage": false,
+    "network": false,
+    "shell": false,
+    "filesystem": "extension-only",
+    "events": true
+  },
+  "contributes": {
+    "assistants": [
+      {
+        "id": "decision-problem-definer",
+        "name": "问题定义助手",
+        "description": "将模糊需求梳理为结构化问题定义和需求简报",
+        "presetAgentType": "gemini",
+        "contextFile": "assistants/problem-definer-context.md",
+        "enabledSkills": ["decision-need-brief"]
+      },
+      {
+        "id": "decision-researcher",
+        "name": "调研分析助手",
+        "description": "分析调研材料，提取候选方向和证据链",
+        "presetAgentType": "gemini",
+        "contextFile": "assistants/researcher-context.md",
+        "enabledSkills": ["decision-research-synthesis", "decision-evidence-collect"]
+      },
+      {
+        "id": "decision-evaluator",
+        "name": "方案评估助手",
+        "description": "建立对比维度，生成评估矩阵和风险分析",
+        "presetAgentType": "gemini",
+        "contextFile": "assistants/evaluator-context.md",
+        "enabledSkills": ["decision-comparison-matrix"]
+      },
+      {
+        "id": "decision-convergence",
+        "name": "决策收敛助手",
+        "description": "综合分析，生成决策建议和下一步行动计划",
+        "presetAgentType": "gemini",
+        "contextFile": "assistants/convergence-context.md",
+        "enabledSkills": ["decision-convergence-report"]
+      }
+    ],
+    "skills": [
+      {
+        "name": "decision-need-brief",
+        "description": "从模糊输入提炼结构化需求简报",
+        "file": "skills/need-brief.md"
+      },
+      {
+        "name": "decision-research-synthesis",
+        "description": "汇总调研结果，输出候选方向清单",
+        "file": "skills/research-synthesis.md"
+      },
+      {
+        "name": "decision-evidence-collect",
+        "description": "从对话中提取证据链",
+        "file": "skills/evidence-collect.md"
+      },
+      {
+        "name": "decision-comparison-matrix",
+        "description": "生成对比矩阵和风险评估",
+        "file": "skills/comparison-matrix.md"
+      },
+      {
+        "name": "decision-convergence-report",
+        "description": "输出决策建议和下一步行动计划",
+        "file": "skills/convergence-report.md"
+      }
+    ]
+  }
+}
