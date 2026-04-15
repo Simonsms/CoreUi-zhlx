@@ -45,10 +45,6 @@ import { initHubBridge } from './hubBridge';
 import { initTeamBridge } from './teamBridge';
 import { initDecisionBridge } from './decisionBridge';
 import type { TeamSessionService } from '@process/team/TeamSessionService';
-import { DecisionService } from '@process/decision/DecisionService';
-import { SqliteDecisionRepository } from '@process/decision/repository/SqliteDecisionRepository';
-import { runDecisionMigrations } from '@process/decision/migrations';
-import { getDatabase } from '@process/services/database';
 
 export interface BridgeDependencies {
   conversationService: IConversationService;
@@ -97,16 +93,6 @@ export function initAllBridges(deps: BridgeDependencies): void {
   initRemoteAgentBridge();
   initHubBridge();
   initTeamBridge(deps.teamSessionService);
-
-  // 决策模块：独立迁移 + Bridge 初始化
-  getDatabase().then((aionDb) => {
-    runDecisionMigrations(aionDb.getDriver());
-    const decisionRepo = new SqliteDecisionRepository();
-    const decisionService = new DecisionService(decisionRepo);
-    initDecisionBridge(decisionService);
-  }).catch((err) => {
-    console.error('[Decision] Failed to initialize:', err);
-  });
 }
 
 /**

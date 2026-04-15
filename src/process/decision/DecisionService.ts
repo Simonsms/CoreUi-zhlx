@@ -232,6 +232,12 @@ export class DecisionService {
     const session = await this.repo.findSession(sessionId);
     if (!session) throw new Error(`Session ${sessionId} not found`);
 
+    // 先校验再写入，避免写入后抛异常导致数据库污染
+    const currentIdx = STAGE_ORDER.indexOf(session.currentStage);
+    if (currentIdx === STAGE_ORDER.length - 1) {
+      throw new Error(`Cannot skip final stage: ${session.currentStage}`);
+    }
+
     // 标记当前阶段为 skipped
     const activeRun = await this.repo.findActiveStageRun(sessionId);
     if (activeRun) {
@@ -239,11 +245,6 @@ export class DecisionService {
         status: 'skipped',
         completedAt: Date.now(),
       });
-    }
-
-    const currentIdx = STAGE_ORDER.indexOf(session.currentStage);
-    if (currentIdx === STAGE_ORDER.length - 1) {
-      throw new Error(`Cannot skip final stage: ${session.currentStage}`);
     }
 
     const nextStage = STAGE_ORDER[currentIdx + 1];
@@ -273,6 +274,13 @@ export class DecisionService {
    * 完成整个决策会话（在最后阶段确认后调用）。
    */
   async completeSession(sessionId: string): Promise<DecisionSession> {
+    const session = await this.repo.findSession(sessionId);
+    if (!session) throw new Error(`Session ${sessionId} not found`);
+    if (session.status !== 'active') throw new Error(`Session ${sessionId} is ${session.status}, cannot complete`);
+    if (session.currentStage !== 'convergence') {
+      throw new Error(`Session ${sessionId} is at ${session.currentStage}, must be at convergence to complete`);
+    }
+
     const activeRun = await this.repo.findActiveStageRun(sessionId);
     if (activeRun) {
       await this.repo.updateStageRun(activeRun.id, {

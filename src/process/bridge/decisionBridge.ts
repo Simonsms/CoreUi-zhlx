@@ -115,10 +115,17 @@ export function initDecisionBridge(service: DecisionService): void {
     })
   );
   ipcBridge.decision.research.update.provider(
-    safeProvider(async (p) => service.updateResearchItem(p.id, p.updates))
+    safeProvider(async (p) => {
+      const item = await service.updateResearchItem(p.id, p.updates);
+      ipcBridge.decision.dataChanged.emit({ sessionId: item.sessionId, type: 'research_updated', entityId: p.id });
+      return item;
+    })
   );
   ipcBridge.decision.research.delete.provider(
-    safeProvider(async (p) => service.deleteResearchItem(p.id))
+    safeProvider(async (p) => {
+      await service.deleteResearchItem(p.id);
+      ipcBridge.decision.dataChanged.emit({ sessionId: '', type: 'research_deleted', entityId: p.id });
+    })
   );
 
   // ── Evidence ─────────────────────────────────────
@@ -128,8 +135,9 @@ export function initDecisionBridge(service: DecisionService): void {
   );
   ipcBridge.decision.evidence.add.provider(
     safeProvider(async (p) => {
-      const ev = await service.addEvidence(p);
-      ipcBridge.decision.dataChanged.emit({ sessionId: '', type: 'evidence_added', entityId: ev.id });
+      const { sessionId, ...evidenceData } = p;
+      const ev = await service.addEvidence(evidenceData);
+      ipcBridge.decision.dataChanged.emit({ sessionId, type: 'evidence_added', entityId: ev.id });
       return ev;
     })
   );
@@ -150,10 +158,17 @@ export function initDecisionBridge(service: DecisionService): void {
     })
   );
   ipcBridge.decision.candidate.update.provider(
-    safeProvider(async (p) => service.updateCandidate(p.id, p.updates))
+    safeProvider(async (p) => {
+      const c = await service.updateCandidate(p.id, p.updates);
+      ipcBridge.decision.dataChanged.emit({ sessionId: c.sessionId, type: 'candidate_updated', entityId: p.id });
+      return c;
+    })
   );
   ipcBridge.decision.candidate.delete.provider(
-    safeProvider(async (p) => service.deleteCandidate(p.id))
+    safeProvider(async (p) => {
+      await service.deleteCandidate(p.id);
+      ipcBridge.decision.dataChanged.emit({ sessionId: '', type: 'candidate_deleted', entityId: p.id });
+    })
   );
 
   // ── ScoreDimension ───────────────────────────────
@@ -162,13 +177,24 @@ export function initDecisionBridge(service: DecisionService): void {
     safeProvider(async (p) => service.listDimensions(p.sessionId))
   );
   ipcBridge.decision.dimension.add.provider(
-    safeProvider(async (p) => service.addDimension(p))
+    safeProvider(async (p) => {
+      const dim = await service.addDimension(p);
+      ipcBridge.decision.dataChanged.emit({ sessionId: dim.sessionId, type: 'dimension_added', entityId: dim.id });
+      return dim;
+    })
   );
   ipcBridge.decision.dimension.update.provider(
-    safeProvider(async (p) => service.updateDimension(p.id, p.updates))
+    safeProvider(async (p) => {
+      const dim = await service.updateDimension(p.id, p.updates);
+      ipcBridge.decision.dataChanged.emit({ sessionId: dim.sessionId, type: 'dimension_updated', entityId: p.id });
+      return dim;
+    })
   );
   ipcBridge.decision.dimension.delete.provider(
-    safeProvider(async (p) => service.deleteDimension(p.id))
+    safeProvider(async (p) => {
+      await service.deleteDimension(p.id);
+      ipcBridge.decision.dataChanged.emit({ sessionId: '', type: 'dimension_deleted', entityId: p.id });
+    })
   );
 
   // ── Recommendation ───────────────────────────────
@@ -184,7 +210,11 @@ export function initDecisionBridge(service: DecisionService): void {
     })
   );
   ipcBridge.decision.recommendation.update.provider(
-    safeProvider(async (p) => service.updateRecommendation(p.id, p.updates))
+    safeProvider(async (p) => {
+      const rec = await service.updateRecommendation(p.id, p.updates);
+      ipcBridge.decision.dataChanged.emit({ sessionId: rec.sessionId, type: 'recommendation_updated', entityId: p.id });
+      return rec;
+    })
   );
 
   // ── Insight ──────────────────────────────────────

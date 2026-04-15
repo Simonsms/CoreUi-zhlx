@@ -1312,7 +1312,6 @@ export const team = {
 
 // ── 决策支持工作台 ───────────────────────────────────
 
-type DTypes = typeof import('@process/decision/types');
 type DSession = import('@process/decision/types').DecisionSession;
 type DWorkspace = import('@process/decision/types').DecisionWorkspace;
 type DStageRun = import('@process/decision/types').StageRun;
@@ -1365,7 +1364,7 @@ export const decision = {
   // Evidence
   evidence: {
     list: bridge.buildProvider<DEvidence[], { researchItemId: string }>('decision.evidence.list'),
-    add: bridge.buildProvider<DEvidence, Omit<DEvidence, 'id' | 'createdAt'>>('decision.evidence.add'),
+    add: bridge.buildProvider<DEvidence, Omit<DEvidence, 'id' | 'createdAt'> & { sessionId: string }>('decision.evidence.add'),
     delete: bridge.buildProvider<void, { id: string }>('decision.evidence.delete'),
   },
   // CandidateOption
