@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Message, Modal, Spin, Typography } from '@arco-design/web-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Button, Message, Modal, Spin, Typography } from '@arco-design/web-react';
+import { ipcBridge } from '@/common';
 import { DecisionUIProvider, useDecisionUI } from '../context/DecisionUIContext';
 import { useDecisionSessionDetail } from '../hooks/useDecisionSession';
 import { useDecisionDataSync } from '../hooks/useDecisionDataSync';
@@ -13,8 +14,29 @@ import { STAGE_LABELS } from '../constants';
 
 const { Text, Title } = Typography;
 
+const STAGE_PROMPTS: Record<string, string> = {
+  problem_definition: '你是问题定义助手，帮助用户将模糊需求梳理成结构化的问题定义和需求简报。使用简体中文回复。',
+  research: '你是调研分析助手，帮助用户分析调研材料、提取关键发现、整理候选方向。使用简体中文回复。',
+  comparison: '你是方案评估助手，帮助用户对候选方案进行多维度比较和风险评估。使用简体中文回复。',
+  convergence: '你是决策收敛助手，帮助用户基于前序分析做出最终决策建议。使用简体中文回复。',
+};
+
+async function createStageConversation(stage: string): Promise<string> {
+  const conversation = await ipcBridge.conversation.create.invoke({
+    type: 'acp',
+    name: `决策会话 - ${STAGE_LABELS[stage as DecisionStage] ?? stage}`,
+    model: {} as import('@/common/config/storage').TProviderWithModel,
+    extra: {
+      backend: 'codex',
+      presetRules: STAGE_PROMPTS[stage] ?? '',
+    },
+  });
+  return conversation.id;
+}
+
 const SessionPageInner: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const {
     session,
     stageRuns,
@@ -40,16 +62,18 @@ const SessionPageInner: React.FC = () => {
   }, [stageRuns, displayStage]);
 
   const handleAdvance = useCallback(async () => {
-    // Phase 5 会正式创建 Conversation，目前用占位 ID
-    const placeholderConvId = `decision-conv-${Date.now()}`;
+    if (!session) return;
+    const currentIdx = STAGE_ORDER.indexOf(session.currentStage);
+    const nextStage = STAGE_ORDER[currentIdx + 1];
     try {
-      await advanceStage(placeholderConvId);
-      setViewStage(null); // 切换到新阶段
+      const convId = await createStageConversation(nextStage);
+      await advanceStage(convId);
+      setViewStage(null);
       Message.success('已推进到下一阶段');
     } catch (err) {
       Message.error(`推进失败: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [advanceStage]);
+  }, [advanceStage, session]);
 
   const handleRevert = useCallback(async () => {
     if (!session) return;
@@ -61,9 +85,9 @@ const SessionPageInner: React.FC = () => {
       title: '确认回退',
       content: `回退到「${STAGE_LABELS[targetStage]}」阶段？当前阶段的数据会保留为历史快照。`,
       onOk: async () => {
-        const placeholderConvId = `decision-conv-${Date.now()}`;
         try {
-          await revertStage(targetStage, placeholderConvId);
+          const convId = await createStageConversation(targetStage);
+          await revertStage(targetStage, convId);
           setViewStage(null);
           Message.success(`已回退到${STAGE_LABELS[targetStage]}`);
         } catch (err) {
@@ -78,9 +102,10 @@ const SessionPageInner: React.FC = () => {
       title: '确认跳过',
       content: '跳过当前阶段？可以随时回退。',
       onOk: async () => {
-        const placeholderConvId = `decision-conv-${Date.now()}`;
         try {
-          await skipStage(placeholderConvId);
+          const nextIdx = STAGE_ORDER.indexOf(session!.currentStage) + 1;
+          const convId = await createStageConversation(STAGE_ORDER[nextIdx]);
+          await skipStage(convId);
           setViewStage(null);
           Message.success('已跳过当前阶段');
         } catch (err) {
@@ -150,21 +175,27 @@ const SessionPageInner: React.FC = () => {
             )}
           </div>
 
-          {/* 消息区占位 — Phase 5 会接入真实的 MessageContainer */}
-          <div className='flex-1 flex items-center justify-center bg-fill-1'>
-            <div className='text-center'>
-              <Text type='secondary' className='block text-lg mb-2'>
-                💬 对话区域
-              </Text>
-              <Text type='secondary' className='text-xs block'>
-                {currentStageRun
-                  ? `Conversation: ${currentStageRun.conversationId.substring(0, 20)}...`
-                  : '等待创建对话'}
-              </Text>
-              <Text type='secondary' className='text-xs block mt-1'>
-                Phase 5 将接入真实的 AI 对话组件
-              </Text>
-            </div>
+          {/* 对话交互区 — 跳转到真实的 AionUi 对话页面 */}
+          <div className='flex-1 flex flex-col items-center justify-center bg-fill-1 gap-4'>
+            {currentStageRun && !currentStageRun.conversationId.startsWith('decision-placeholder') ? (
+              <>
+                <Text type='secondary' className='text-sm'>
+                  点击下方按钮进入 AI 对话，与{STAGE_LABELS[displayStage]}助手交互
+                </Text>
+                <Button
+                  type='primary'
+                  size='large'
+                  onClick={() => navigate(`/conversation/${currentStageRun.conversationId}`)}
+                >
+                  打开对话 →
+                </Button>
+                <Text type='secondary' className='text-xs'>
+                  对话完成后，点击浏览器返回按钮回到决策工作台
+                </Text>
+              </>
+            ) : (
+              <Text type='secondary'>当前阶段尚未创建对话</Text>
+            )}
           </div>
         </div>
 

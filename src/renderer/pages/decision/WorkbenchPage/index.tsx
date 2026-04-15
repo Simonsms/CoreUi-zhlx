@@ -44,12 +44,19 @@ const WorkbenchPage: React.FC = () => {
         // 有 session，跳转到最近的
         navigate(`/decision/session/${sessions[0].id}`);
       } else {
-        // 没有 session，创建一个新的
-        // 先创建一个占位 conversationId（后续 Phase 5 会正式绑定 Conversation）
-        const placeholderConvId = `decision-placeholder-${Date.now()}`;
+        // 创建真实的 AionUi Conversation（绑定 Codex/ACP agent）
+        const conversation = await ipcBridge.conversation.create.invoke({
+          type: 'acp',
+          name: '决策会话 - 问题定义',
+          model: {} as import('@/common/config/storage').TProviderWithModel,
+          extra: {
+            backend: 'codex',
+            presetRules: '你是问题定义助手，帮助用户将模糊需求梳理成结构化的问题定义。使用简体中文回复。',
+          },
+        });
         const result = await ipcBridge.decision.session.create.invoke({
           workspaceId,
-          conversationId: placeholderConvId,
+          conversationId: conversation.id,
         });
         navigate(`/decision/session/${result.session.id}`);
       }
