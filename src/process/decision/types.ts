@@ -127,7 +127,7 @@ export type DecisionRecommendation = {
 export type Insight = {
   id: string;
   sessionId: string;
-  stageRunId: string;
+  stageRunId: string | null;
   content: string;
   stage: DecisionStage;
   importance: ImportanceLevel;
@@ -238,7 +238,7 @@ export type DecisionRecommendationRow = {
 export type InsightRow = {
   id: string;
   session_id: string;
-  stage_run_id: string;
+  stage_run_id: string | null;
   stage: string;
   content: string;
   importance: string;

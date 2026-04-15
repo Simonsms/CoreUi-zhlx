@@ -9,19 +9,21 @@ type DecisionMigration = {
   version: number;
   name: string;
   up: (db: ISqliteDriver) => void;
+  down: (db: ISqliteDriver) => void;
 };
 
 // ── 版本追踪 ─────────────────────────────────────────
 
 function ensureVersionTable(db: ISqliteDriver): number {
   db.exec(`CREATE TABLE IF NOT EXISTS _decision_schema_version (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
     version INTEGER NOT NULL DEFAULT 0
   )`);
   const row = db.prepare('SELECT version FROM _decision_schema_version').get() as
     | { version: number }
     | undefined;
   if (!row) {
-    db.exec('INSERT INTO _decision_schema_version (version) VALUES (0)');
+    db.exec('INSERT INTO _decision_schema_version (id, version) VALUES (1, 0)');
     return 0;
   }
   return row.version;
@@ -158,15 +160,27 @@ const migration_v1: DecisionMigration = {
     db.exec(`CREATE TABLE IF NOT EXISTS insights (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
-      stage_run_id TEXT NOT NULL DEFAULT '',
+      stage_run_id TEXT,
       stage TEXT NOT NULL,
       content TEXT NOT NULL,
       importance TEXT NOT NULL DEFAULT 'medium',
       created_at INTEGER NOT NULL,
-      FOREIGN KEY (session_id) REFERENCES decision_sessions(id) ON DELETE CASCADE
+      FOREIGN KEY (session_id) REFERENCES decision_sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (stage_run_id) REFERENCES stage_runs(id) ON DELETE SET NULL
     )`);
     db.exec('CREATE INDEX IF NOT EXISTS idx_in_session_id ON insights(session_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_in_stage ON insights(session_id, stage)');
+  },
+  down(db) {
+    db.exec('DROP TABLE IF EXISTS insights');
+    db.exec('DROP TABLE IF EXISTS decision_recommendations');
+    db.exec('DROP TABLE IF EXISTS score_dimensions');
+    db.exec('DROP TABLE IF EXISTS candidate_options');
+    db.exec('DROP TABLE IF EXISTS evidence');
+    db.exec('DROP TABLE IF EXISTS research_items');
+    db.exec('DROP TABLE IF EXISTS stage_runs');
+    db.exec('DROP TABLE IF EXISTS decision_sessions');
+    db.exec('DROP TABLE IF EXISTS decision_workspaces');
   },
 };
 

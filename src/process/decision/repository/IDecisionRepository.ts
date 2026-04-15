@@ -58,6 +58,7 @@ export type IResearchItemRepository = {
 
 export type IEvidenceRepository = {
   createEvidence(evidence: Evidence): Promise<Evidence>;
+  findEvidence(id: string): Promise<Evidence | null>;
   findEvidenceByResearchItem(researchItemId: string): Promise<Evidence[]>;
   deleteEvidence(id: string): Promise<void>;
 };
@@ -76,6 +77,7 @@ export type ICandidateOptionRepository = {
 
 export type IScoreDimensionRepository = {
   createDimension(dimension: ScoreDimension): Promise<ScoreDimension>;
+  findDimension(id: string): Promise<ScoreDimension | null>;
   findDimensionsBySession(sessionId: string): Promise<ScoreDimension[]>;
   updateDimension(id: string, updates: Partial<ScoreDimension>): Promise<ScoreDimension>;
   deleteDimension(id: string): Promise<void>;
