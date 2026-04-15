@@ -47,6 +47,11 @@ async function main() {
       entryPoints: [path.join(ROOT, 'src/process/team/mcp/guide/teamGuideMcpStdio.ts')],
       outfile: path.join(ROOT, 'out/main/team-guide-mcp-stdio.js'),
     }),
+    esbuild.build({
+      ...SHARED_OPTIONS,
+      entryPoints: [path.join(ROOT, 'src/process/decision/mcp/decisionMcpStdio.ts')],
+      outfile: path.join(ROOT, 'out/main/decision-mcp-stdio.js'),
+    }),
   ]);
 }
 

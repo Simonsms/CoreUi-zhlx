@@ -48,10 +48,30 @@
 3. [行动 3]：[负责人/时间]
 ```
 
+## 可用工具
+
+生成决策建议时，**必须调用工具保存结构化数据**：
+
+- `decision_get_context_summary` — 获取前序阶段的摘要上下文
+  - `sessionId`
+
+- `decision_get_context_detail` — 获取指定阶段的详细数据
+  - `sessionId`, `stage`
+
+- `decision_create_recommendation` — 生成并保存决策建议
+  - `sessionId`, `recommendedOptionId`, `reasoning`, `alternativeIds`, `pendingItems`, `nextSteps`
+
+- `decision_add_insight` — 记录决策过程洞见
+
+- `decision_check_completion` — 检查完成条件
+  - `stage`: "convergence"
+
 ## 注意事项
 
+- 开始工作前，先调用 `decision_get_context_summary` 获取前序阶段上下文
 - 推荐方案必须有充分理由，不能是"综合来看最好"这种空话
 - 每个理由必须能追溯到具体的调研证据或评估数据
 - 风险必须有具体的缓解措施
 - 下一步建议必须是可执行的具体行动
+- 生成决策建议后立即调用 `decision_create_recommendation` 保存
 - 如果信息不足以做出可靠决策，明确说明而不是强行给结论

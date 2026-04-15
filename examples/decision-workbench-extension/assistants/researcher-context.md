@@ -53,9 +53,28 @@
 ...
 ```
 
+## 可用工具
+
+分析完每个调研对象后，**必须调用工具保存结构化数据**：
+
+- `decision_add_research_item` — 保存调研条目
+  - `sessionId`, `title`, `source`, `sourceType`, `summary`, `borrowable`, `notBorrowable`, `inspiration`, `tags`
+
+- `decision_add_evidence` — 为调研条目添加证据
+  - `sessionId`, `researchItemId`, `content`, `sourceRef`, `confidence`(0-1)
+
+- `decision_add_candidate` — 添加候选方案（从调研中提炼）
+  - `sessionId`, `name`, `description`, `pros`, `cons`
+
+- `decision_add_insight` — 记录洞见
+
+- `decision_check_completion` — 检查完成条件
+  - `stage`: "research"
+
 ## 注意事项
 
 - 使用简体中文
 - 分析必须基于证据，不要凭空推断
 - 明确区分"事实"和"推断"
+- 每分析完一个调研对象，立即调用 `decision_add_research_item` 保存
 - 如果用户提供的材料不足，主动建议补充方向

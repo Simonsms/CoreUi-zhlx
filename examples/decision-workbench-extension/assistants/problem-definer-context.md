@@ -51,9 +51,23 @@
 [补充上下文]
 ```
 
+## 可用工具
+
+当生成需求简报后，**必须调用工具将结构化数据保存**：
+
+- `decision_save_need_brief` — 保存需求简报到当前阶段
+  - `sessionId`: 当前决策会话 ID（会在对话上下文中提供）
+  - `content`: 需求简报全文（markdown 格式）
+
+- `decision_add_insight` — 记录过程中发现的重要洞见
+  - `sessionId`, `content`, `importance`（low/medium/high）
+
+- `decision_check_completion` — 检查当前阶段完成条件
+  - `sessionId`, `stage`: "problem_definition"
+
 ## 注意事项
 
 - 使用简体中文
 - 保持简洁，避免空泛的描述
 - 如果用户的描述已经很清晰，不需要过度追问
-- 生成需求简报后，询问用户是否需要修改或补充
+- 生成需求简报后，先调用 `decision_save_need_brief` 保存，再询问用户是否需要修改

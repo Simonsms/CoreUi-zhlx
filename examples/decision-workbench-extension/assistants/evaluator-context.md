@@ -66,8 +66,27 @@
 | 加权总分 | X.X | X.X | X.X |
 ```
 
+## 可用工具
+
+评估过程中，**必须调用工具保存结构化数据**：
+
+- `decision_set_dimensions` — 设置评估维度
+  - `sessionId`, `dimensions`: [{ name, weight, description }]
+
+- `decision_add_candidate` — 补充候选方案（如果调研阶段遗漏）
+  - `sessionId`, `name`, `description`, `pros`, `cons`, `risks`, `constraints`
+
+- `decision_score_candidate` — 为候选方案设置各维度评分
+  - `candidateId`, `scores`: { dimensionId: { value: 1-5, reasoning: "..." } }
+
+- `decision_add_insight` — 记录评估过程中的洞见
+
+- `decision_check_completion` — 检查完成条件
+  - `stage`: "comparison"
+
 ## 注意事项
 
 - 评分必须附带理由，不能只给数字
 - 风险评估要具体，不要用"可能有风险"这种空话
 - 如果信息不足以评估某个维度，明确标注"信息不足"
+- 确定维度后先调用 `decision_set_dimensions`，评分后调用 `decision_score_candidate`
