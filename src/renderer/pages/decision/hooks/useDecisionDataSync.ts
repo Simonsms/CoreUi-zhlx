@@ -9,7 +9,7 @@ import { useDecisionUI } from '../context/DecisionUIContext';
  */
 export function useDecisionDataSync(sessionId: string | undefined) {
   const { mutate } = useSWRConfig();
-  const ui = useDecisionUI();
+  const { addHighlight } = useDecisionUI();
 
   useEffect(() => {
     if (!sessionId) return;
@@ -41,11 +41,14 @@ export function useDecisionDataSync(sessionId: string | undefined) {
       }
 
       // 新增数据触发高亮
+      // 刷新完成条件
+      void mutate(`decision.completion.${sessionId}.${event.type.split('_')[0]}`);
+
       if (event.entityId && event.type.endsWith('_added')) {
-        ui.addHighlight(event.entityId);
+        addHighlight(event.entityId);
       }
     });
 
     return unsubscribe;
-  }, [sessionId, mutate, ui]);
+  }, [sessionId, mutate, addHighlight]);
 }

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { DecisionStage } from '@process/decision/types';
 
 type DecisionUIState = {
@@ -25,19 +25,26 @@ export const DecisionUIProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [selectedResearchItemId, setSelectedResearchItem] = useState<string | null>(null);
   const [selectedCandidateId, setSelectedCandidate] = useState<string | null>(null);
   const [highlightedItemIds, setHighlightedItemIds] = useState<Set<string>>(new Set());
+  const highlightTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  // 组件卸载时清理所有高亮 timer
+  useEffect(() => {
+    return () => highlightTimersRef.current.forEach(clearTimeout);
+  }, []);
 
   const toggleRightPanel = useCallback(() => setRightPanelCollapsed((v) => !v), []);
 
   const addHighlight = useCallback((id: string) => {
     setHighlightedItemIds((prev) => new Set(prev).add(id));
-    // 2 秒后自动移除高亮
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setHighlightedItemIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
+      highlightTimersRef.current.delete(timer);
     }, 2000);
+    highlightTimersRef.current.add(timer);
   }, []);
 
   const removeHighlight = useCallback((id: string) => {

@@ -13,18 +13,21 @@ type ContextPanelProps = {
 };
 
 const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, collapsed }) => {
+  const showResearch = currentStage === 'research' || currentStage === 'comparison';
+  const showCandidates = currentStage === 'comparison' || currentStage === 'convergence';
+
   const { data: researchItems } = useSWR(
-    `decision.research.${sessionId}`,
+    showResearch ? `decision.research.${sessionId}` : null,
     () => ipcBridge.decision.research.list.invoke({ sessionId })
   );
 
   const { data: candidates } = useSWR(
-    `decision.candidates.${sessionId}`,
+    showCandidates ? `decision.candidates.${sessionId}` : null,
     () => ipcBridge.decision.candidate.list.invoke({ sessionId })
   );
 
   const { data: recommendation } = useSWR(
-    `decision.recommendation.${sessionId}`,
+    currentStage === 'convergence' ? `decision.recommendation.${sessionId}` : null,
     () => ipcBridge.decision.recommendation.get.invoke({ sessionId })
   );
 
@@ -50,7 +53,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, co
               <Card key={item.id} size='small' className='mb-2'>
                 <Text className='font-medium block'>{item.title}</Text>
                 <Text type='secondary' className='text-xs block mt-1'>
-                  {item.summary.substring(0, 80)}
+                  {(item.summary ?? '').substring(0, 80)}
                   {item.summary.length > 80 ? '...' : ''}
                 </Text>
                 {item.tags.length > 0 && (
@@ -79,7 +82,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, co
               <Card key={c.id} size='small' className='mb-2'>
                 <Text className='font-medium block'>{c.name}</Text>
                 <Text type='secondary' className='text-xs block mt-1'>
-                  {c.description.substring(0, 60)}
+                  {(c.description ?? '').substring(0, 60)}
                   {c.description.length > 60 ? '...' : ''}
                 </Text>
                 {Object.keys(c.scores).length > 0 && (
@@ -98,7 +101,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, co
         <div className='mb-4'>
           <Text className='text-sm font-bold block mb-2'>决策建议</Text>
           <Card size='small'>
-            <Text className='block'>{recommendation.reasoning.substring(0, 150)}</Text>
+            <Text className='block'>{(recommendation.reasoning ?? '').substring(0, 150)}</Text>
             {recommendation.nextSteps.length > 0 && (
               <div className='mt-2'>
                 <Text type='secondary' className='text-xs block'>下一步：</Text>

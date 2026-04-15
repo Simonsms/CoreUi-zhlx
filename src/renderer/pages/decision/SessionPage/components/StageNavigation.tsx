@@ -2,13 +2,7 @@ import React from 'react';
 import { Steps, Tag } from '@arco-design/web-react';
 import type { DecisionStage, StageRun } from '@process/decision/types';
 import { STAGE_ORDER } from '@process/decision/types';
-
-const STAGE_LABELS: Record<DecisionStage, string> = {
-  problem_definition: '问题定义',
-  research: '调研发散',
-  comparison: '方案评估',
-  convergence: '决策收敛',
-};
+import { STAGE_LABELS } from '../../constants';
 
 const STATUS_COLORS: Record<string, string> = {
   active: 'arcoblue',

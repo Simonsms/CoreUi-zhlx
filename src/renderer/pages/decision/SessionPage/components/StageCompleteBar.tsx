@@ -5,13 +5,7 @@ import useSWR from 'swr';
 import { ipcBridge } from '@/common';
 import type { DecisionStage } from '@process/decision/types';
 import { STAGE_ORDER } from '@process/decision/types';
-
-const STAGE_LABELS: Record<DecisionStage, string> = {
-  problem_definition: '问题定义',
-  research: '调研发散',
-  comparison: '方案评估',
-  convergence: '决策收敛',
-};
+import { STAGE_LABELS } from '../../constants';
 
 type StageCompleteBarProps = {
   sessionId: string;
@@ -34,8 +28,7 @@ const StageCompleteBar: React.FC<StageCompleteBarProps> = ({
 }) => {
   const { data: completionStatus } = useSWR(
     `decision.completion.${sessionId}.${currentStage}`,
-    () => ipcBridge.decision.stage.getCompletionStatus.invoke({ sessionId, stage: currentStage }),
-    { refreshInterval: 5000 }
+    () => ipcBridge.decision.stage.getCompletionStatus.invoke({ sessionId, stage: currentStage })
   );
 
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
