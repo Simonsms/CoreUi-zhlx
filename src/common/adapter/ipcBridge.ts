@@ -1309,3 +1309,97 @@ export const team = {
   listChanged: bridge.buildEmitter<import('@/common/types/teamTypes').ITeamListChangedEvent>('team.list-changed'),
   mcpStatus: bridge.buildEmitter<import('@/common/types/teamTypes').ITeamMcpStatusEvent>('team.mcp.status'),
 };
+
+// ── 决策支持工作台 ───────────────────────────────────
+
+type DTypes = typeof import('@process/decision/types');
+type DSession = import('@process/decision/types').DecisionSession;
+type DWorkspace = import('@process/decision/types').DecisionWorkspace;
+type DStageRun = import('@process/decision/types').StageRun;
+type DResearchItem = import('@process/decision/types').ResearchItem;
+type DEvidence = import('@process/decision/types').Evidence;
+type DCandidate = import('@process/decision/types').CandidateOption;
+type DDimension = import('@process/decision/types').ScoreDimension;
+type DRecommendation = import('@process/decision/types').DecisionRecommendation;
+type DInsight = import('@process/decision/types').Insight;
+type DCompletionStatus = import('@process/decision/types').StageCompletionStatus;
+
+export const decision = {
+  // Workspace
+  workspace: {
+    list: bridge.buildProvider<DWorkspace[], { userId: string }>('decision.workspace.list'),
+    create: bridge.buildProvider<DWorkspace, { userId: string; name: string; description?: string }>('decision.workspace.create'),
+    get: bridge.buildProvider<DWorkspace | null, { id: string }>('decision.workspace.get'),
+    update: bridge.buildProvider<DWorkspace, { id: string; updates: Partial<DWorkspace> }>('decision.workspace.update'),
+    delete: bridge.buildProvider<void, { id: string }>('decision.workspace.delete'),
+  },
+  // Session
+  session: {
+    list: bridge.buildProvider<DSession[], { workspaceId: string }>('decision.session.list'),
+    create: bridge.buildProvider<{ session: DSession; stageRun: DStageRun }, { workspaceId: string; conversationId: string }>('decision.session.create'),
+    get: bridge.buildProvider<DSession | null, { id: string }>('decision.session.get'),
+    getWithStages: bridge.buildProvider<{ session: DSession; stageRuns: DStageRun[] } | null, { id: string }>('decision.session.get-with-stages'),
+    recent: bridge.buildProvider<DSession[], { userId: string; limit?: number }>('decision.session.recent'),
+    advance: bridge.buildProvider<{ session: DSession; stageRun: DStageRun }, { sessionId: string; conversationId: string }>('decision.session.advance'),
+    revert: bridge.buildProvider<{ session: DSession; stageRun: DStageRun }, { sessionId: string; targetStage: string; conversationId: string }>('decision.session.revert'),
+    skip: bridge.buildProvider<{ session: DSession; stageRun: DStageRun }, { sessionId: string; conversationId: string }>('decision.session.skip'),
+    complete: bridge.buildProvider<DSession, { sessionId: string }>('decision.session.complete'),
+    archive: bridge.buildProvider<DSession, { sessionId: string }>('decision.session.archive'),
+    delete: bridge.buildProvider<void, { id: string }>('decision.session.delete'),
+  },
+  // Stage
+  stage: {
+    getCurrent: bridge.buildProvider<DStageRun | null, { sessionId: string }>('decision.stage.get-current'),
+    getHistory: bridge.buildProvider<DStageRun[], { sessionId: string; stage: string }>('decision.stage.get-history'),
+    getCompletionStatus: bridge.buildProvider<DCompletionStatus, { sessionId: string; stage: string }>('decision.stage.completion-status'),
+    update: bridge.buildProvider<DStageRun, { id: string; updates: Partial<DStageRun> }>('decision.stage.update'),
+    getByConversation: bridge.buildProvider<DStageRun | null, { conversationId: string }>('decision.stage.get-by-conversation'),
+  },
+  // ResearchItem
+  research: {
+    list: bridge.buildProvider<DResearchItem[], { sessionId: string }>('decision.research.list'),
+    add: bridge.buildProvider<DResearchItem, Omit<DResearchItem, 'id' | 'createdAt'>>('decision.research.add'),
+    update: bridge.buildProvider<DResearchItem, { id: string; updates: Partial<DResearchItem> }>('decision.research.update'),
+    delete: bridge.buildProvider<void, { id: string }>('decision.research.delete'),
+  },
+  // Evidence
+  evidence: {
+    list: bridge.buildProvider<DEvidence[], { researchItemId: string }>('decision.evidence.list'),
+    add: bridge.buildProvider<DEvidence, Omit<DEvidence, 'id' | 'createdAt'>>('decision.evidence.add'),
+    delete: bridge.buildProvider<void, { id: string }>('decision.evidence.delete'),
+  },
+  // CandidateOption
+  candidate: {
+    list: bridge.buildProvider<DCandidate[], { sessionId: string }>('decision.candidate.list'),
+    add: bridge.buildProvider<DCandidate, Omit<DCandidate, 'id' | 'createdAt' | 'updatedAt'>>('decision.candidate.add'),
+    update: bridge.buildProvider<DCandidate, { id: string; updates: Partial<DCandidate> }>('decision.candidate.update'),
+    delete: bridge.buildProvider<void, { id: string }>('decision.candidate.delete'),
+  },
+  // ScoreDimension
+  dimension: {
+    list: bridge.buildProvider<DDimension[], { sessionId: string }>('decision.dimension.list'),
+    add: bridge.buildProvider<DDimension, Omit<DDimension, 'id' | 'createdAt'>>('decision.dimension.add'),
+    update: bridge.buildProvider<DDimension, { id: string; updates: Partial<DDimension> }>('decision.dimension.update'),
+    delete: bridge.buildProvider<void, { id: string }>('decision.dimension.delete'),
+  },
+  // Recommendation
+  recommendation: {
+    get: bridge.buildProvider<DRecommendation | null, { sessionId: string }>('decision.recommendation.get'),
+    create: bridge.buildProvider<DRecommendation, Omit<DRecommendation, 'id' | 'createdAt'>>('decision.recommendation.create'),
+    update: bridge.buildProvider<DRecommendation, { id: string; updates: Partial<DRecommendation> }>('decision.recommendation.update'),
+  },
+  // Insight
+  insight: {
+    list: bridge.buildProvider<DInsight[], { sessionId: string }>('decision.insight.list'),
+    listByStage: bridge.buildProvider<DInsight[], { sessionId: string; stage: string }>('decision.insight.list-by-stage'),
+    add: bridge.buildProvider<DInsight, Omit<DInsight, 'id' | 'createdAt'>>('decision.insight.add'),
+  },
+  // Analytics
+  analytics: {
+    contextSummary: bridge.buildProvider<string, { sessionId: string }>('decision.analytics.context-summary'),
+    contextDetail: bridge.buildProvider<Record<string, unknown>, { sessionId: string; stage: string }>('decision.analytics.context-detail'),
+    export: bridge.buildProvider<Record<string, unknown>, { sessionId: string }>('decision.analytics.export'),
+  },
+  // 实时数据变更事件
+  dataChanged: bridge.buildEmitter<{ sessionId: string; type: string; entityId?: string }>('decision.data-changed'),
+};
