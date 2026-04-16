@@ -25,6 +25,7 @@ import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { skillSuggestWatcher } from '@process/services/cron/SkillSuggestWatcher';
 import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
 import { getTeamGuideStdioConfig } from '@process/team/mcp/guide/teamGuideSingleton';
+import { getDecisionStdioConfig } from '@process/decision/init';
 import BaseAgentManager from './BaseAgentManager';
 import { IpcAgentEventEmitter } from './IpcAgentEventEmitter';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
@@ -326,7 +327,8 @@ export class GeminiAgentManager extends BaseAgentManager<
         console.warn('[GeminiAgentManager] Failed to load extension MCP servers:', extError);
       }
 
-      if (allServers.length === 0 && !this.teamMcpStdioConfig?.command) {
+      const hasDecisionMcp = Boolean(getDecisionStdioConfig());
+      if (allServers.length === 0 && !this.teamMcpStdioConfig?.command && !hasDecisionMcp) {
         this.mcpFingerprint = '[]';
         return {};
       }
@@ -398,6 +400,21 @@ export class GeminiAgentManager extends BaseAgentManager<
           };
           mainLog('[GeminiAgentManager]', 'getMcpServers: injected aion team-guide MCP server');
         }
+      }
+
+      // Inject Decision Workbench MCP server (available to all Gemini sessions)
+      const decisionStdioConfig = getDecisionStdioConfig();
+      if (decisionStdioConfig) {
+        const decisionEnvObj: Record<string, string> = {};
+        for (const { name, value } of decisionStdioConfig.env || []) {
+          decisionEnvObj[name] = value;
+        }
+        mcpConfig[decisionStdioConfig.name] = {
+          command: decisionStdioConfig.command,
+          args: decisionStdioConfig.args || [],
+          env: decisionEnvObj,
+        };
+        mainLog('[GeminiAgentManager]', 'getMcpServers: injected decision MCP server:', decisionStdioConfig.name);
       }
 
       return mcpConfig;

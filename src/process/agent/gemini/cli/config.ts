@@ -215,8 +215,8 @@ export async function loadCliConfig({
       const allowedNames = new Set(settings.allowMCPServers.filter(Boolean));
       if (allowedNames.size > 0) {
         mcpServersConfig = Object.fromEntries(
-          // Team MCP servers (aionui-team-*) are always kept regardless of allowlist
-          Object.entries(mcpServersConfig).filter(([key]) => key.startsWith('aionui-team-') || allowedNames.has(key))
+          // Team MCP servers (aionui-team-*) and Decision MCP are always kept regardless of allowlist
+          Object.entries(mcpServersConfig).filter(([key]) => key.startsWith('aionui-team-') || key === 'zhlxui-decision' || allowedNames.has(key))
         );
       }
     }
@@ -225,8 +225,8 @@ export async function loadCliConfig({
       const excludedNames = new Set(settings.excludeMCPServers.filter(Boolean));
       if (excludedNames.size > 0) {
         mcpServersConfig = Object.fromEntries(
-          // Team MCP servers (aionui-team-*) are never excluded
-          Object.entries(mcpServersConfig).filter(([key]) => key.startsWith('aionui-team-') || !excludedNames.has(key))
+          // Team MCP servers (aionui-team-*) and Decision MCP are never excluded
+          Object.entries(mcpServersConfig).filter(([key]) => key.startsWith('aionui-team-') || key === 'zhlxui-decision' || !excludedNames.has(key))
         );
       }
     }
@@ -237,7 +237,7 @@ export async function loadCliConfig({
     if (allowedNames.size > 0) {
       mcpServersConfig = Object.fromEntries(
         Object.entries(mcpServersConfig).filter(([key, server]) => {
-          const isAllowed = allowedNames.has(key);
+          const isAllowed = allowedNames.has(key) || key.startsWith('aionui-team-') || key === 'zhlxui-decision';
           if (!isAllowed) {
             // aioncli-core v0.18.4: 使用 server.extension?.name 替代 server.extensionName / use server.extension?.name instead of server.extensionName
             blockedMcpServers.push({
