@@ -76,33 +76,33 @@ const StageNavigation: React.FC<StageNavigationProps> = ({
               key={stage}
               title={
                 <div
-                  className={`cursor-pointer p-2.5 rd-1 transition-all ${isViewing && !isActive ? 'bg-fill-2 font-bold text-1' : isActive ? 'bg-[var(--color-primary-light-1)] border border-[var(--color-primary-light-3)] text-[var(--color-primary-7)] font-medium shadow-sm' : 'text-2 hover:bg-fill-1'}`}
+                  className={`cursor-pointer transition-colors flex flex-col gap-1 pt-0.5 pb-3 ${isViewing && !isActive ? 'font-bold text-t-primary' : isActive ? 'text-[var(--color-primary-6)] font-medium' : 'text-t-secondary hover:text-t-primary'} ${isActive && status === 'active' ? 'decision-stage-breathe' : ''}`}
                   onClick={() => onStageClick(stage)}
                 >
-                  <div
-                    className={`flex items-center justify-between ${isActive && status === 'active' ? 'decision-stage-breathe' : ''}`}
-                  >
+                  <div className='flex items-center justify-between'>
                     <span>{STAGE_LABELS[stage]}</span>
-                    {hasUnread && <span className='w-6px h-6px rd-full bg-[var(--color-danger-6)]' />}
+                    {hasUnread && (
+                      <span className='w-6px h-6px rd-full bg-[var(--color-danger-6)] mt-1' />
+                    )}
                   </div>
-                  <div className='flex flex-col gap-1.5 font-normal mt-1.5'>
-                    <div className='flex items-center gap-1 flex-wrap'>
-                      <Tag size='small' color={STATUS_COLORS[status]}>
+                  <div className='flex flex-col gap-1.5 font-normal mt-1'>
+                    <div className='flex items-center gap-1.5 flex-wrap'>
+                      <Tag size='small' color={STATUS_COLORS[status]} className='rounded-sm border-none bg-opacity-80'>
                         {STATUS_TEXT[status] ?? status}
                       </Tag>
                       {runs.length > 1 && (
-                        <Tag size='small' color='gray'>
+                        <Tag size='small' color='gray' className='rounded-sm border-none'>
                           第{runs.length}轮
                         </Tag>
                       )}
                     </div>
                     {agentLabel && (
-                      <Tag size='small' color='purple' className='max-w-full'>
+                      <Tag size='small' color='purple' className='max-w-full rounded-sm border-none bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300'>
                         {agentLabel}
                       </Tag>
                     )}
                     {isViewing && !isActive && (
-                      <Tag size='small' color='blue'>
+                      <Tag size='small' color='blue' className='rounded-sm border-none'>
                         查看中
                       </Tag>
                     )}
