@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Card, Empty, Input, Modal, Space, Typography } from '@arco-design/web-react';
 import { Plus, Delete } from '@icon-park/react';
 import { useDecisionWorkspaces } from '../hooks/useDecisionWorkspace';
+import { STAGE_PROMPTS } from '../constants';
 import { ipcBridge } from '@/common';
 
 const { Title, Text } = Typography;
@@ -44,21 +45,27 @@ const WorkbenchPage: React.FC = () => {
         // 有 session，跳转到最近的
         navigate(`/decision/session/${sessions[0].id}`);
       } else {
-        // 创建真实的 AionUi Conversation（绑定 Codex/ACP agent）
-        const conversation = await ipcBridge.conversation.create.invoke({
-          type: 'acp',
-          name: '决策会话 - 问题定义',
-          model: {} as import('@/common/config/storage').TProviderWithModel,
-          extra: {
-            backend: 'codex',
-            presetRules: '你是问题定义助手，帮助用户将模糊需求梳理成结构化的问题定义。使用简体中文回复。',
-          },
-        });
-        const result = await ipcBridge.decision.session.create.invoke({
-          workspaceId,
-          conversationId: conversation.id,
-        });
-        navigate(`/decision/session/${result.session.id}`);
+        try {
+          const conversation = await ipcBridge.conversation.create.invoke({
+            type: 'acp',
+            name: '决策会话 - 问题定义',
+            model: {} as import('@/common/config/storage').TProviderWithModel,
+            extra: {
+              backend: 'codex',
+              presetContext: STAGE_PROMPTS.problem_definition,
+            },
+          });
+          const result = await ipcBridge.decision.session.create.invoke({
+            workspaceId,
+            conversationId: conversation.id,
+          });
+          navigate(`/decision/session/${result.session.id}`);
+        } catch (err) {
+          Modal.error({
+            title: '创建失败',
+            content: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     },
     [navigate]

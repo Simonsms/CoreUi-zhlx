@@ -1,15 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { DecisionStage } from '@process/decision/types';
 
 type DecisionUIState = {
-  rightPanelCollapsed: boolean;
   selectedResearchItemId: string | null;
   selectedCandidateId: string | null;
   highlightedItemIds: Set<string>;
 };
 
 type DecisionUIActions = {
-  toggleRightPanel: () => void;
   setSelectedResearchItem: (id: string | null) => void;
   setSelectedCandidate: (id: string | null) => void;
   addHighlight: (id: string) => void;
@@ -21,18 +18,14 @@ type DecisionUIContextValue = DecisionUIState & DecisionUIActions;
 const DecisionUICtx = createContext<DecisionUIContextValue | null>(null);
 
 export const DecisionUIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [selectedResearchItemId, setSelectedResearchItem] = useState<string | null>(null);
   const [selectedCandidateId, setSelectedCandidate] = useState<string | null>(null);
   const [highlightedItemIds, setHighlightedItemIds] = useState<Set<string>>(new Set());
   const highlightTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
-  // 组件卸载时清理所有高亮 timer
   useEffect(() => {
     return () => highlightTimersRef.current.forEach(clearTimeout);
   }, []);
-
-  const toggleRightPanel = useCallback(() => setRightPanelCollapsed((v) => !v), []);
 
   const addHighlight = useCallback((id: string) => {
     setHighlightedItemIds((prev) => new Set(prev).add(id));
@@ -57,17 +50,15 @@ export const DecisionUIProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const value = useMemo(
     () => ({
-      rightPanelCollapsed,
       selectedResearchItemId,
       selectedCandidateId,
       highlightedItemIds,
-      toggleRightPanel,
       setSelectedResearchItem,
       setSelectedCandidate,
       addHighlight,
       removeHighlight,
     }),
-    [rightPanelCollapsed, selectedResearchItemId, selectedCandidateId, highlightedItemIds, toggleRightPanel, addHighlight, removeHighlight]
+    [selectedResearchItemId, selectedCandidateId, highlightedItemIds, addHighlight, removeHighlight]
   );
 
   return <DecisionUICtx.Provider value={value}>{children}</DecisionUICtx.Provider>;

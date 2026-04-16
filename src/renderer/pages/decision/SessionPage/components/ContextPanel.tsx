@@ -9,10 +9,9 @@ const { Text, Title } = Typography;
 type ContextPanelProps = {
   sessionId: string;
   currentStage: DecisionStage;
-  collapsed: boolean;
 };
 
-const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, collapsed }) => {
+const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage }) => {
   const showResearch = currentStage === 'research' || currentStage === 'comparison';
   const showCandidates = currentStage === 'comparison' || currentStage === 'convergence';
 
@@ -36,10 +35,8 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, co
     () => ipcBridge.decision.insight.list.invoke({ sessionId })
   );
 
-  if (collapsed) return null;
-
   return (
-    <div className='h-full border-l border-color-2 overflow-auto p-3' style={{ width: 350 }}>
+    <div className='h-full overflow-auto p-3'>
       <Title heading={6} className='!mb-3'>结构化数据</Title>
 
       {/* 调研条目 */}
@@ -54,9 +51,9 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, co
                 <Text className='font-medium block'>{item.title}</Text>
                 <Text type='secondary' className='text-xs block mt-1'>
                   {(item.summary ?? '').substring(0, 80)}
-                  {item.summary.length > 80 ? '...' : ''}
+                  {(item.summary ?? '').length > 80 ? '...' : ''}
                 </Text>
-                {item.tags.length > 0 && (
+                {(item.tags ?? []).length > 0 && (
                   <div className='mt-1 flex gap-1 flex-wrap'>
                     {item.tags.map((tag) => (
                       <Tag key={tag} size='small' color='arcoblue'>{tag}</Tag>
@@ -83,9 +80,9 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, co
                 <Text className='font-medium block'>{c.name}</Text>
                 <Text type='secondary' className='text-xs block mt-1'>
                   {(c.description ?? '').substring(0, 60)}
-                  {c.description.length > 60 ? '...' : ''}
+                  {(c.description ?? '').length > 60 ? '...' : ''}
                 </Text>
-                {Object.keys(c.scores).length > 0 && (
+                {Object.keys(c.scores ?? {}).length > 0 && (
                   <Tag size='small' color='green' className='mt-1'>已评分</Tag>
                 )}
               </Card>
@@ -102,7 +99,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage, co
           <Text className='text-sm font-bold block mb-2'>决策建议</Text>
           <Card size='small'>
             <Text className='block'>{(recommendation.reasoning ?? '').substring(0, 150)}</Text>
-            {recommendation.nextSteps.length > 0 && (
+            {(recommendation.nextSteps ?? []).length > 0 && (
               <div className='mt-2'>
                 <Text type='secondary' className='text-xs block'>下一步：</Text>
                 {recommendation.nextSteps.map((step, i) => (

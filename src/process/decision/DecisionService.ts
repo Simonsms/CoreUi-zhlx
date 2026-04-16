@@ -367,7 +367,7 @@ export class DecisionService {
     if (items.length > 0) {
       parts.push(
         `## 调研摘要（共 ${items.length} 项）\n` +
-          items.map((i) => `- **${i.title}**: ${i.summary.substring(0, 100)}`).join('\n')
+          items.map((i) => `- **${i.title}**: ${(i.summary ?? '').substring(0, 100)}`).join('\n')
       );
     }
 
@@ -375,7 +375,7 @@ export class DecisionService {
     if (candidates.length > 0) {
       parts.push(
         `## 候选方案（共 ${candidates.length} 个）\n` +
-          candidates.map((c) => `- **${c.name}**: ${c.description.substring(0, 100)}`).join('\n')
+          candidates.map((c) => `- **${c.name}**: ${(c.description ?? '').substring(0, 100)}`).join('\n')
       );
     }
 

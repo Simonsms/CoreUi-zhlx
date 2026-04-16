@@ -1,42 +1,89 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Message, Modal, Spin, Typography } from '@arco-design/web-react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Message, Modal, Spin, Typography } from '@arco-design/web-react';
+import useSWR from 'swr';
 import { ipcBridge } from '@/common';
-import { DecisionUIProvider, useDecisionUI } from '../context/DecisionUIContext';
+import { uuid } from '@/common/utils';
+import type { TChatConversation } from '@/common/config/storage';
+import ChatLayout from '@/renderer/pages/conversation/components/ChatLayout';
+import { DecisionUIProvider } from '../context/DecisionUIContext';
 import { useDecisionSessionDetail } from '../hooks/useDecisionSession';
 import { useDecisionDataSync } from '../hooks/useDecisionDataSync';
 import StageNavigation from './components/StageNavigation';
 import ContextPanel from './components/ContextPanel';
 import StageCompleteBar from './components/StageCompleteBar';
+import StageAgentModal from './components/StageAgentModal';
+import type { StageAgentSelection } from './components/StageAgentModal';
 import type { DecisionStage } from '@process/decision/types';
 import { STAGE_ORDER } from '@process/decision/types';
-import { STAGE_LABELS } from '../constants';
+import { STAGE_LABELS, STAGE_PROMPTS, buildSessionContext } from '../constants';
+import { resolveModelForConversationType } from '../utils/resolveModel';
 
-const { Text, Title } = Typography;
+const TeamChatView = React.lazy(() => import('@/renderer/pages/team/components/TeamChatView'));
 
-const STAGE_PROMPTS: Record<string, string> = {
-  problem_definition: '你是问题定义助手，帮助用户将模糊需求梳理成结构化的问题定义和需求简报。使用简体中文回复。',
-  research: '你是调研分析助手，帮助用户分析调研材料、提取关键发现、整理候选方向。使用简体中文回复。',
-  comparison: '你是方案评估助手，帮助用户对候选方案进行多维度比较和风险评估。使用简体中文回复。',
-  convergence: '你是决策收敛助手，帮助用户基于前序分析做出最终决策建议。使用简体中文回复。',
+const { Text } = Typography;
+
+type PendingAction = {
+  type: 'advance' | 'revert' | 'skip';
+  targetStage: DecisionStage;
 };
 
-async function createStageConversation(stage: string): Promise<string> {
+async function createStageConversation(
+  stage: DecisionStage,
+  sessionId: string,
+  agentSelection?: StageAgentSelection
+): Promise<string> {
+  const conversationType = agentSelection?.conversationType ?? 'acp';
+  const backend = agentSelection?.agentType ?? 'codex';
+  const model = await resolveModelForConversationType(conversationType);
+
+  // 获取前序上下文摘要，注入到 prompt 中，AI 不需要手动调用 decision_get_context_summary
+  let contextPreamble = '';
+  if (stage !== 'problem_definition') {
+    try {
+      const summary = await ipcBridge.decision.analytics.contextSummary.invoke({ sessionId });
+      if (summary) {
+        contextPreamble = `\n\n**前序阶段产出物摘要：**\n${summary}\n`;
+      }
+    } catch {
+      // 获取失败不阻塞，AI 仍可通过工具调用获取
+    }
+  }
+
   const conversation = await ipcBridge.conversation.create.invoke({
-    type: 'acp',
-    name: `决策会话 - ${STAGE_LABELS[stage as DecisionStage] ?? stage}`,
-    model: {} as import('@/common/config/storage').TProviderWithModel,
+    type: conversationType,
+    name: `决策会话 - ${STAGE_LABELS[stage]}`,
+    model,
     extra: {
-      backend: 'codex',
-      presetRules: STAGE_PROMPTS[stage] ?? '',
+      backend,
+      presetContext: STAGE_PROMPTS[stage] + contextPreamble + buildSessionContext(sessionId),
+      cliPath: agentSelection?.cliPath,
+      customAgentId: agentSelection?.customAgentId,
     },
   });
+
+  // 自动发送启动消息（仅 ACP/Codex 类型，模型由后端管理，可直接发送）
+  const canAutoSend = stage !== 'problem_definition' && (conversationType === 'acp' || conversationType === 'codex');
+  if (canAutoSend) {
+    const autoMessage = `请基于前序阶段的产出物，开始「${STAGE_LABELS[stage]}」阶段的分析工作。`;
+    setTimeout(async () => {
+      try {
+        await ipcBridge.conversation.sendMessage.invoke({
+          conversation_id: conversation.id,
+          input: autoMessage,
+          msg_id: uuid(),
+        });
+      } catch {
+        // 非关键路径，静默处理
+      }
+    }, 2000);
+  }
+
   return conversation.id;
 }
 
 const SessionPageInner: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const {
     session,
     stageRuns,
@@ -46,36 +93,67 @@ const SessionPageInner: React.FC = () => {
     skipStage,
     completeSession,
   } = useDecisionSessionDetail(id);
-  const ui = useDecisionUI();
 
-  // 监听数据变更事件
   useDecisionDataSync(id);
 
-  // 当前查看的阶段（可以查看非活跃阶段的历史）
+  // 补充注入 sessionId 到首次创建的 conversation（WorkbenchPage 创建时不知道 sessionId）
+  useEffect(() => {
+    if (!session || !stageRuns.length) return;
+    const firstRun = stageRuns.find((r) => r.stage === 'problem_definition');
+    if (!firstRun || firstRun.conversationId.startsWith('decision-placeholder')) return;
+
+    void (async () => {
+      try {
+        const conv = await ipcBridge.conversation.get.invoke({ id: firstRun.conversationId });
+        const context = (conv?.extra as { presetContext?: string })?.presetContext ?? '';
+        if (context && !context.includes('当前决策会话 ID')) {
+          await ipcBridge.conversation.update.invoke({
+            id: firstRun.conversationId,
+            updates: {
+              extra: {
+                ...conv?.extra,
+                presetContext: context + buildSessionContext(session.id),
+              },
+            },
+          });
+        }
+      } catch {
+        // 非关键路径，静默处理
+      }
+    })();
+  }, [session?.id, stageRuns]);
+
   const [viewStage, setViewStage] = useState<DecisionStage | null>(null);
   const displayStage = viewStage ?? session?.currentStage ?? 'problem_definition';
+  const isViewingHistory = session ? displayStage !== session.currentStage : false;
 
-  // 当前阶段对应的 StageRun
+  // Agent 选择模态框状态
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+
   const currentStageRun = useMemo(() => {
     const runs = stageRuns.filter((r) => r.stage === displayStage);
     return runs.length > 0 ? runs[runs.length - 1] : null;
   }, [stageRuns, displayStage]);
 
-  const handleAdvance = useCallback(async () => {
+  const conversationId = currentStageRun?.conversationId;
+  const isPlaceholder = conversationId?.startsWith('decision-placeholder') ?? true;
+
+  const { data: stageConversation } = useSWR(
+    conversationId && !isPlaceholder ? ['stage-conv', conversationId] : null,
+    () => ipcBridge.conversation.get.invoke({ id: conversationId! })
+  );
+
+  // 推进：先弹出 Agent 选择
+  const handleAdvance = useCallback(() => {
     if (!session) return;
     const currentIdx = STAGE_ORDER.indexOf(session.currentStage);
     const nextStage = STAGE_ORDER[currentIdx + 1];
-    try {
-      const convId = await createStageConversation(nextStage);
-      await advanceStage(convId);
-      setViewStage(null);
-      Message.success('已推进到下一阶段');
-    } catch (err) {
-      Message.error(`推进失败: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }, [advanceStage, session]);
+    if (!nextStage) return;
+    setPendingAction({ type: 'advance', targetStage: nextStage });
+  }, [session]);
 
-  const handleRevert = useCallback(async () => {
+  // 回退：先确认再选 Agent
+  const handleRevert = useCallback(() => {
     if (!session) return;
     const currentIdx = STAGE_ORDER.indexOf(session.currentStage);
     if (currentIdx <= 0) return;
@@ -84,36 +162,50 @@ const SessionPageInner: React.FC = () => {
     Modal.confirm({
       title: '确认回退',
       content: `回退到「${STAGE_LABELS[targetStage]}」阶段？当前阶段的数据会保留为历史快照。`,
-      onOk: async () => {
-        try {
-          const convId = await createStageConversation(targetStage);
-          await revertStage(targetStage, convId);
-          setViewStage(null);
-          Message.success(`已回退到${STAGE_LABELS[targetStage]}`);
-        } catch (err) {
-          Message.error(`回退失败: ${err instanceof Error ? err.message : String(err)}`);
-        }
+      onOk: () => {
+        setPendingAction({ type: 'revert', targetStage });
       },
     });
-  }, [session, revertStage]);
+  }, [session]);
 
-  const handleSkip = useCallback(async () => {
+  // 跳过：先确认再选 Agent
+  const handleSkip = useCallback(() => {
+    if (!session) return;
     Modal.confirm({
       title: '确认跳过',
       content: '跳过当前阶段？可以随时回退。',
-      onOk: async () => {
-        try {
-          const nextIdx = STAGE_ORDER.indexOf(session!.currentStage) + 1;
-          const convId = await createStageConversation(STAGE_ORDER[nextIdx]);
-          await skipStage(convId);
-          setViewStage(null);
-          Message.success('已跳过当前阶段');
-        } catch (err) {
-          Message.error(`跳过失败: ${err instanceof Error ? err.message : String(err)}`);
-        }
+      onOk: () => {
+        const nextIdx = STAGE_ORDER.indexOf(session.currentStage) + 1;
+        const nextStage = STAGE_ORDER[nextIdx];
+        if (!nextStage) return;
+        setPendingAction({ type: 'skip', targetStage: nextStage });
       },
     });
-  }, [skipStage]);
+  }, [session]);
+
+  // Agent 选择确认后执行实际操作
+  const handleAgentConfirm = useCallback(async (selection: StageAgentSelection) => {
+    if (!pendingAction || !session) return;
+    const { type, targetStage } = pendingAction;
+
+    try {
+      const convId = await createStageConversation(targetStage, session.id, selection);
+      if (type === 'advance') {
+        await advanceStage(convId);
+        Message.success('已推进到下一阶段');
+      } else if (type === 'revert') {
+        await revertStage(targetStage, convId);
+        Message.success(`已回退到${STAGE_LABELS[targetStage]}`);
+      } else if (type === 'skip') {
+        await skipStage(convId);
+        Message.success('已跳过当前阶段');
+      }
+      setPendingAction(null);
+      setViewStage(null);
+    } catch (err) {
+      Message.error(`操作失败: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [pendingAction, session, advanceStage, revertStage, skipStage]);
 
   const handleComplete = useCallback(async () => {
     Modal.confirm({
@@ -129,6 +221,17 @@ const SessionPageInner: React.FC = () => {
       },
     });
   }, [completeSession]);
+
+  // sider: ContextPanel
+  const sider = useMemo(() => {
+    if (!session) return <div />;
+    return <ContextPanel sessionId={session.id} currentStage={displayStage} />;
+  }, [session, displayStage]);
+
+  const siderTitle = useMemo(
+    () => <span className='text-16px font-bold text-t-primary'>结构化数据</span>,
+    []
+  );
 
   if (isLoading) {
     return (
@@ -147,77 +250,75 @@ const SessionPageInner: React.FC = () => {
   }
 
   return (
-    <div className='w-full h-full flex flex-col'>
-      {/* 三栏主体 */}
-      <div className='flex-1 flex overflow-hidden'>
-        {/* 左栏：阶段导航 */}
+    <ChatLayout
+      title={`决策会话 - ${STAGE_LABELS[session.currentStage]}`}
+      sider={sider}
+      siderTitle={siderTitle}
+      workspaceEnabled={true}
+      tabsSlot={null}
+    >
+      <div className='flex h-full'>
+        {/* 左栏：竖向 Stepper */}
         <StageNavigation
           currentStage={session.currentStage}
+          viewStage={displayStage}
           stageRuns={stageRuns}
-          onStageClick={(stage) => setViewStage(stage)}
+          stageConversation={stageConversation}
+          onStageClick={(stage) => setViewStage(stage === session.currentStage ? null : stage)}
         />
 
-        {/* 中栏：交互区 */}
-        <div className='flex-1 flex flex-col overflow-hidden'>
-          <div className='px-4 py-3 border-b border-color-2 flex items-center gap-2'>
-            <Title heading={6} className='!mb-0'>
-              {STAGE_LABELS[displayStage]}
-            </Title>
-            {currentStageRun && currentStageRun.runNumber > 1 && (
-              <Text type='secondary' className='text-xs'>
-                (第 {currentStageRun.runNumber} 轮)
-              </Text>
-            )}
-            {displayStage !== session.currentStage && (
-              <Text type='warning' className='text-xs'>
-                （正在查看历史阶段，当前活跃阶段是{STAGE_LABELS[session.currentStage]}）
-              </Text>
-            )}
-          </div>
+        {/* 右侧主区 */}
+        <div className='flex-1 flex flex-col min-h-0'>
+          {/* 历史阶段提示条 */}
+          {isViewingHistory && (
+            <div className='px-4 py-2 bg-[var(--color-warning-light-1)] text-[var(--color-warning-6)] text-xs flex items-center gap-2 shrink-0'>
+              <span>正在查看历史阶段「{STAGE_LABELS[displayStage]}」</span>
+              <span className='cursor-pointer underline' onClick={() => setViewStage(null)}>
+                返回当前阶段
+              </span>
+            </div>
+          )}
 
-          {/* 对话交互区 — 跳转到真实的 AionUi 对话页面 */}
-          <div className='flex-1 flex flex-col items-center justify-center bg-fill-1 gap-4'>
-            {currentStageRun && !currentStageRun.conversationId.startsWith('decision-placeholder') ? (
-              <>
-                <Text type='secondary' className='text-sm'>
-                  点击下方按钮进入 AI 对话，与{STAGE_LABELS[displayStage]}助手交互
-                </Text>
-                <Button
-                  type='primary'
-                  size='large'
-                  onClick={() => navigate(`/conversation/${currentStageRun.conversationId}`)}
-                >
-                  打开对话 →
-                </Button>
-                <Text type='secondary' className='text-xs'>
-                  对话完成后，点击浏览器返回按钮回到决策工作台
-                </Text>
-              </>
+          {/* 内嵌对话 — 使用 TeamChatView 支持多平台 */}
+          <div className='flex-1 flex flex-col min-h-0'>
+            {stageConversation ? (
+              <Suspense fallback={<div className='flex-1 flex items-center justify-center'><Spin size={24} /></div>}>
+                <TeamChatView
+                  key={stageConversation.id}
+                  conversation={stageConversation as TChatConversation}
+                  hideSendBox={isViewingHistory}
+                />
+              </Suspense>
             ) : (
-              <Text type='secondary'>当前阶段尚未创建对话</Text>
+              <div className='flex-1 h-full flex flex-col items-center justify-center bg-fill-1 gap-3'>
+                <Text type='secondary' className='text-sm'>
+                  {isPlaceholder ? '当前阶段尚未创建对话' : '加载对话中...'}
+                </Text>
+              </div>
             )}
           </div>
-        </div>
 
-        {/* 右栏：结构化数据面板 */}
-        <ContextPanel
-          sessionId={session.id}
-          currentStage={displayStage}
-          collapsed={ui.rightPanelCollapsed}
-        />
+          {/* 底部操作栏 */}
+          <StageCompleteBar
+            sessionId={session.id}
+            currentStage={session.currentStage}
+            sessionStatus={session.status}
+            onAdvance={handleAdvance}
+            onRevert={handleRevert}
+            onSkip={handleSkip}
+            onComplete={handleComplete}
+          />
+        </div>
       </div>
 
-      {/* 底部：阶段操作栏 */}
-      <StageCompleteBar
-        sessionId={session.id}
-        currentStage={session.currentStage}
-        sessionStatus={session.status}
-        onAdvance={handleAdvance}
-        onRevert={handleRevert}
-        onSkip={handleSkip}
-        onComplete={handleComplete}
+      {/* Agent 选择模态框 */}
+      <StageAgentModal
+        visible={pendingAction !== null}
+        targetStage={pendingAction?.targetStage ?? 'problem_definition'}
+        onClose={() => setPendingAction(null)}
+        onConfirm={handleAgentConfirm}
       />
-    </div>
+    </ChatLayout>
   );
 };
 

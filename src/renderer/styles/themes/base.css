@@ -41,6 +41,11 @@ body,
   }
 }
 
+.decision-stage-breathe {
+  animation: team-tab-breathe 2.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+
 @keyframes team-tab-breathe {
   0%,
   100% {

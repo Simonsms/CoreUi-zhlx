@@ -76,8 +76,8 @@ const StageCompleteBar: React.FC<StageCompleteBarProps> = ({
           <Button
             type='primary'
             size='small'
+            status={isMet ? undefined : 'warning'}
             icon={<CheckOne />}
-            disabled={!isMet}
             onClick={onComplete}
           >
             确认决策
@@ -86,8 +86,8 @@ const StageCompleteBar: React.FC<StageCompleteBarProps> = ({
           <Button
             type='primary'
             size='small'
+            status={isMet ? undefined : 'warning'}
             icon={<Right />}
-            disabled={!isMet}
             onClick={onAdvance}
           >
             推进到{STAGE_LABELS[STAGE_ORDER[currentIdx + 1]]}
