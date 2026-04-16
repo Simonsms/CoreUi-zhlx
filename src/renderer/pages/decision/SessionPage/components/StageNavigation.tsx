@@ -76,37 +76,37 @@ const StageNavigation: React.FC<StageNavigationProps> = ({
               key={stage}
               title={
                 <div
-                  className={`cursor-pointer py-1 relative ${isViewing ? 'font-bold text-1' : isActive ? 'font-medium text-1' : 'text-2'} ${isActive && status === 'active' ? 'decision-stage-breathe' : ''}`}
+                  className={`cursor-pointer p-2.5 rd-1 transition-all ${isViewing && !isActive ? 'bg-fill-2 font-bold text-1' : isActive ? 'bg-[var(--color-primary-light-1)] border border-[var(--color-primary-light-3)] text-[var(--color-primary-7)] font-medium shadow-sm' : 'text-2 hover:bg-fill-1'}`}
                   onClick={() => onStageClick(stage)}
                 >
-                  {STAGE_LABELS[stage]}
-                  {hasUnread && (
-                    <span className='absolute -top-1 -right-1 w-6px h-6px rd-full bg-[var(--color-danger-6)]' />
-                  )}
-                </div>
-              }
-              description={
-                <div className='flex flex-col gap-1 mt-1'>
-                  <div className='flex items-center gap-1'>
-                    <Tag size='small' color={STATUS_COLORS[status]}>
-                      {STATUS_TEXT[status] ?? status}
-                    </Tag>
-                    {runs.length > 1 && (
-                      <Tag size='small' color='gray'>
-                        第{runs.length}轮
+                  <div
+                    className={`flex items-center justify-between ${isActive && status === 'active' ? 'decision-stage-breathe' : ''}`}
+                  >
+                    <span>{STAGE_LABELS[stage]}</span>
+                    {hasUnread && <span className='w-6px h-6px rd-full bg-[var(--color-danger-6)]' />}
+                  </div>
+                  <div className='flex flex-col gap-1.5 font-normal mt-1.5'>
+                    <div className='flex items-center gap-1 flex-wrap'>
+                      <Tag size='small' color={STATUS_COLORS[status]}>
+                        {STATUS_TEXT[status] ?? status}
+                      </Tag>
+                      {runs.length > 1 && (
+                        <Tag size='small' color='gray'>
+                          第{runs.length}轮
+                        </Tag>
+                      )}
+                    </div>
+                    {agentLabel && (
+                      <Tag size='small' color='purple' className='max-w-full'>
+                        {agentLabel}
+                      </Tag>
+                    )}
+                    {isViewing && !isActive && (
+                      <Tag size='small' color='blue'>
+                        查看中
                       </Tag>
                     )}
                   </div>
-                  {agentLabel && (
-                    <Tag size='small' color='purple' className='max-w-full'>
-                      {agentLabel}
-                    </Tag>
-                  )}
-                  {isViewing && !isActive && (
-                    <Tag size='small' color='blue'>
-                      查看中
-                    </Tag>
-                  )}
                 </div>
               }
             />

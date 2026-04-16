@@ -26,9 +26,8 @@ const StageCompleteBar: React.FC<StageCompleteBarProps> = ({
   onSkip,
   onComplete,
 }) => {
-  const { data: completionStatus } = useSWR(
-    `decision.completion.${sessionId}.${currentStage}`,
-    () => ipcBridge.decision.stage.getCompletionStatus.invoke({ sessionId, stage: currentStage })
+  const { data: completionStatus } = useSWR(`decision.completion.${sessionId}.${currentStage}`, () =>
+    ipcBridge.decision.stage.getCompletionStatus.invoke({ sessionId, stage: currentStage })
   );
 
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
@@ -39,14 +38,16 @@ const StageCompleteBar: React.FC<StageCompleteBarProps> = ({
 
   if (isCompleted) {
     return (
-      <div className='flex items-center justify-center py-3 px-4 border-t border-color-2 bg-fill-1'>
-        <Tag color='green' size='large'>决策已完成</Tag>
+      <div className='flex items-center justify-center py-3.5 px-5 border-t border-color-2 bg-2 shadow-sm z-10'>
+        <Tag color='green' size='large' icon={<CheckOne />}>
+          决策已完成
+        </Tag>
       </div>
     );
   }
 
   return (
-    <div className='flex items-center justify-between py-2 px-4 border-t border-color-2 bg-fill-1'>
+    <div className='flex items-center justify-between py-3 px-5 border-t border-color-2 bg-2 shadow-sm z-10'>
       <div className='flex items-center gap-2'>
         <Tag color={isMet ? 'green' : 'orangered'} size='small'>
           {isMet ? '条件已满足' : '条件未满足'}
@@ -61,36 +62,36 @@ const StageCompleteBar: React.FC<StageCompleteBarProps> = ({
           ))}
       </div>
 
-      <Space>
+      <Space size={12}>
         {!isFirstStage && (
-          <Button size='small' icon={<Left />} onClick={onRevert}>
-            回退
+          <Button onClick={onRevert} className='px-4' style={{ borderRadius: '4px' }}>
+            <span className='flex items-center gap-1.5'><Left /> 回退</span>
           </Button>
         )}
         {!isLastStage && (
-          <Button size='small' icon={<DoubleRight />} onClick={onSkip}>
-            跳过
+          <Button type='secondary' onClick={onSkip} className='px-4' style={{ borderRadius: '4px' }}>
+            <span className='flex items-center gap-1.5'><DoubleRight /> 跳过</span>
           </Button>
         )}
         {isLastStage ? (
           <Button
             type='primary'
-            size='small'
             status={isMet ? undefined : 'warning'}
-            icon={<CheckOne />}
             onClick={onComplete}
+            className='px-5 font-medium'
+            style={{ borderRadius: '4px' }}
           >
-            确认决策
+            <span className='flex items-center gap-1.5'><CheckOne /> 确认决策</span>
           </Button>
         ) : (
           <Button
             type='primary'
-            size='small'
             status={isMet ? undefined : 'warning'}
-            icon={<Right />}
             onClick={onAdvance}
+            className='px-5 font-medium'
+            style={{ borderRadius: '4px' }}
           >
-            推进到{STAGE_LABELS[STAGE_ORDER[currentIdx + 1]]}
+            <span className='flex items-center gap-1.5'><Right /> 推进到 {STAGE_LABELS[STAGE_ORDER[currentIdx + 1]]}</span>
           </Button>
         )}
       </Space>

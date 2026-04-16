@@ -11,13 +11,18 @@ export async function resolveModelForConversationType(
 ): Promise<TProviderWithModel> {
   if (conversationType === 'gemini') {
     try {
-      return await getDefaultGeminiModel();
+      const provider = await getDefaultGeminiModel();
+      // 决策会话优先使用 flash 避免 pro-preview 限速
+      if (provider.useModel === 'auto' || provider.useModel?.includes('pro')) {
+        provider.useModel = 'gemini-3-flash-preview';
+      }
+      return provider;
     } catch {
-      // 无 Gemini 模型配置时返回 Google Auth + 默认模型
+      // 无 Gemini 模型配置时返回 Google Auth + flash
       return {
         id: 'gemini-placeholder',
         name: 'Gemini',
-        useModel: 'gemini-3-flash',
+        useModel: 'gemini-3-flash-preview',
         platform: 'gemini-with-google-auth' as TProviderWithModel['platform'],
         baseUrl: '',
         apiKey: '',

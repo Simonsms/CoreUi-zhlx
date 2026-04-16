@@ -89,12 +89,13 @@ const StageAgentModal: React.FC<Props> = ({ visible, targetStage, onClose, onCon
       }
       size='small'
     >
-      <div className='flex flex-col gap-16px p-20px'>
-        <div className='text-sm text-[var(--color-text-3)]'>
-          选择一个 AI 助手来处理「{STAGE_LABELS[targetStage]}」阶段的对话。不同的模型可以提供不同的分析视角。
+      <div className='flex flex-col gap-4 p-5'>
+        <div className='text-[13px] text-[var(--color-primary-7)] bg-[var(--color-primary-light-1)] p-3 rd-1 border border-[var(--color-primary-light-2)] leading-relaxed'>
+          选择一个 AI 助手来处理「<strong>{STAGE_LABELS[targetStage]}</strong>
+          」阶段的对话。不同的模型可以提供不同的分析视角。
         </div>
-        <div className='flex flex-col gap-6px'>
-          <label className='text-sm text-[var(--color-text-2)] font-medium'>AI 助手</label>
+        <div className='flex flex-col gap-2'>
+          <label className='text-[13px] text-t-primary font-medium'>AI 助手</label>
           <Select
             placeholder={allAgents.length === 0 ? '未检测到可用 Agent' : '选择 AI 助手'}
             value={selectedKey}
