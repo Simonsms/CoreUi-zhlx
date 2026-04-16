@@ -13,11 +13,11 @@ export async function resolveModelForConversationType(
     try {
       return await getDefaultGeminiModel();
     } catch {
-      // 无 Gemini 模型配置时返回 Google Auth placeholder
+      // 无 Gemini 模型配置时返回 Google Auth + 默认模型
       return {
         id: 'gemini-placeholder',
         name: 'Gemini',
-        useModel: 'default',
+        useModel: 'gemini-3-flash',
         platform: 'gemini-with-google-auth' as TProviderWithModel['platform'],
         baseUrl: '',
         apiKey: '',

@@ -30,10 +30,17 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage }) 
     () => ipcBridge.decision.recommendation.get.invoke({ sessionId })
   );
 
+  const { data: dimensions } = useSWR(
+    showCandidates ? `decision.dimensions.${sessionId}` : null,
+    () => ipcBridge.decision.dimension.list.invoke({ sessionId })
+  );
+
   const { data: insights } = useSWR(
     `decision.insights.${sessionId}`,
     () => ipcBridge.decision.insight.list.invoke({ sessionId })
   );
+
+  const dimensionNames = new Map((dimensions ?? []).map((d) => [d.id, d.name]));
 
   return (
     <div className='h-full overflow-auto p-3'>
@@ -75,18 +82,35 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage }) 
             候选方案 ({candidates?.length ?? 0})
           </Text>
           {candidates && candidates.length > 0 ? (
-            candidates.map((c) => (
-              <Card key={c.id} size='small' className='mb-2'>
-                <Text className='font-medium block'>{c.name}</Text>
-                <Text type='secondary' className='text-xs block mt-1'>
-                  {(c.description ?? '').substring(0, 60)}
-                  {(c.description ?? '').length > 60 ? '...' : ''}
-                </Text>
-                {Object.keys(c.scores ?? {}).length > 0 && (
-                  <Tag size='small' color='green' className='mt-1'>已评分</Tag>
-                )}
-              </Card>
-            ))
+            candidates.map((c) => {
+              const scores = c.scores ?? {};
+              const scoreEntries = Object.entries(scores);
+              return (
+                <Card key={c.id} size='small' className='mb-2'>
+                  <Text className='font-medium block'>{c.name}</Text>
+                  <Text type='secondary' className='text-xs block mt-1'>
+                    {(c.description ?? '').substring(0, 60)}
+                    {(c.description ?? '').length > 60 ? '...' : ''}
+                  </Text>
+                  {scoreEntries.length > 0 ? (
+                    <div className='mt-2 flex flex-col gap-1'>
+                      {scoreEntries.map(([dimId, score]) => {
+                        const dimName = dimensionNames.get(dimId) ?? '评估维度';
+                        const val = typeof score.value === 'number' ? score.value : '-';
+                        return (
+                          <div key={dimId} className='flex items-center justify-between text-xs'>
+                            <Text type='secondary' className='truncate max-w-120px'>{dimName}</Text>
+                            <Tag size='small' color='green'>{val} 分</Tag>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Tag size='small' color='gray' className='mt-1'>未评分</Tag>
+                  )}
+                </Card>
+              );
+            })
           ) : (
             <Empty className='py-4' description='暂无候选方案' />
           )}

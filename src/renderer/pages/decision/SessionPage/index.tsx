@@ -222,6 +222,20 @@ const SessionPageInner: React.FC = () => {
     });
   }, [completeSession]);
 
+  // 发送预设消息（开始分析 / 继续工作）
+  const handleSendPrompt = useCallback(async (promptText: string) => {
+    if (!conversationId || isPlaceholder) return;
+    try {
+      await ipcBridge.conversation.sendMessage.invoke({
+        conversation_id: conversationId,
+        input: promptText,
+        msg_id: uuid(),
+      });
+    } catch {
+      Message.error('发送消息失败');
+    }
+  }, [conversationId, isPlaceholder]);
+
   // sider: ContextPanel
   const sider = useMemo(() => {
     if (!session) return <div />;
@@ -275,6 +289,26 @@ const SessionPageInner: React.FC = () => {
               <span>正在查看历史阶段「{STAGE_LABELS[displayStage]}」</span>
               <span className='cursor-pointer underline' onClick={() => setViewStage(null)}>
                 返回当前阶段
+              </span>
+            </div>
+          )}
+
+          {/* 快捷操作栏 */}
+          {!isViewingHistory && stageConversation && session && (
+            <div className='px-4 py-1 flex items-center justify-end gap-3 shrink-0'>
+              {displayStage !== 'problem_definition' && (
+                <span
+                  className='text-xs text-[var(--color-primary-6)] cursor-pointer hover:underline'
+                  onClick={() => handleSendPrompt(`请基于前序阶段的产出物，开始「${STAGE_LABELS[displayStage]}」阶段的分析工作。`)}
+                >
+                  开始分析
+                </span>
+              )}
+              <span
+                className='text-xs text-[var(--color-text-3)] cursor-pointer hover:text-[var(--color-primary-6)] hover:underline'
+                onClick={() => handleSendPrompt(`请继续完成「${STAGE_LABELS[session.currentStage]}」阶段的工作，确保所有结构化数据都已通过工具调用保存。`)}
+              >
+                让 AI 继续工作
               </span>
             </div>
           )}

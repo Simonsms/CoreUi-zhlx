@@ -363,19 +363,25 @@ export class DecisionService {
       parts.push(`## 需求简报\n${defRun.output}`);
     }
 
-    // 调研条目摘要
+    // 调研条目摘要（包含 ID，供后续阶段引用）
     if (items.length > 0) {
       parts.push(
         `## 调研摘要（共 ${items.length} 项）\n` +
-          items.map((i) => `- **${i.title}**: ${(i.summary ?? '').substring(0, 100)}`).join('\n')
+          items.map((i) => `- [id=${i.id}] **${i.title}**: ${(i.summary ?? '').substring(0, 100)}`).join('\n')
       );
     }
 
-    // 候选方案摘要
+    // 候选方案摘要（包含 ID，供评分和决策引用）
     if (candidates.length > 0) {
       parts.push(
         `## 候选方案（共 ${candidates.length} 个）\n` +
-          candidates.map((c) => `- **${c.name}**: ${(c.description ?? '').substring(0, 100)}`).join('\n')
+          candidates
+            .map((c) => {
+              const scoreCount = Object.keys(c.scores).length;
+              const scoreInfo = scoreCount > 0 ? `（已评分 ${scoreCount} 维度）` : '（未评分）';
+              return `- [id=${c.id}] **${c.name}**${scoreInfo}: ${(c.description ?? '').substring(0, 100)}`;
+            })
+            .join('\n')
       );
     }
 
