@@ -16,13 +16,39 @@ import { getDevAppName } from '@/common/platform';
 // Note: getPlatformServices() auto-registration also applies this as a safety net
 // in case Rollup loads initStorage's chunk before this module runs.
 // 开发模式下设置独立 app 名称，userData 目录将与正式版隔离，允许同时运行
+
+// 品牌重命名迁移：旧 userData 目录存在且新目录不存在时，自动重命名
+const LEGACY_APP_NAMES: readonly string[] = ['zhlxUi', 'zhlxUi-Dev', 'zhlxUi-Dev-2'];
+
+function migrateUserData(appSupportDir: string, newName: string): void {
+  const newDir = path.join(appSupportDir, newName);
+  if (fs.existsSync(newDir)) return;
+  for (const legacy of LEGACY_APP_NAMES) {
+    const oldDir = path.join(appSupportDir, legacy);
+    if (fs.existsSync(oldDir)) {
+      try {
+        fs.renameSync(oldDir, newDir);
+        console.log(`[CoreAI] Migrated userData: ${legacy} → ${newName}`);
+      } catch (err) {
+        console.warn(`[CoreAI] Failed to migrate userData from ${legacy}:`, err);
+      }
+      return;
+    }
+  }
+}
+
 if (!app.isPackaged) {
   const devAppName = getDevAppName();
   app.setName(devAppName);
   // In Electron 28+, setName alone no longer updates userData path on macOS.
   // Explicitly override userData to the dev directory.
   const appSupportDir = path.dirname(app.getPath('userData'));
+  migrateUserData(appSupportDir, devAppName);
   app.setPath('userData', path.join(appSupportDir, devAppName));
+} else {
+  const appSupportDir = path.dirname(app.getPath('userData'));
+  const productName = app.getName();
+  migrateUserData(appSupportDir, productName);
 }
 
 // Configure Chromium command-line flags for WebUI and CLI modes

@@ -123,7 +123,7 @@ function createTeamTool(
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-const server = new McpServer({ name: 'aionui-team', version: '1.0.0' }, { capabilities: { tools: {} } });
+const server = new McpServer({ name: 'coreai-team', version: '1.0.0' }, { capabilities: { tools: {} } });
 
 // ---- team_send_message ----
 createTeamTool(

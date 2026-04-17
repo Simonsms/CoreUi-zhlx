@@ -41,8 +41,10 @@ export function useDecisionDataSync(sessionId: string | undefined) {
       }
 
       // 新增数据触发高亮
-      // 刷新完成条件
-      void mutate(`decision.completion.${sessionId}.${event.type.split('_')[0]}`);
+      // 刷新完成条件（任何数据变更都可能影响当前阶段的完成状态）
+      void mutate(
+        (key: unknown) => typeof key === 'string' && key.startsWith(`decision.completion.${sessionId}.`)
+      );
 
       if (event.entityId && event.type.endsWith('_added')) {
         addHighlight(event.entityId);

@@ -1,12 +1,12 @@
-appId: com.zhlxui.app
-productName: zhlxUi
-executableName: zhlxUi
-copyright: Copyright © 2024 zhlxUi
+appId: com.coreai.app
+productName: CoreAI
+executableName: CoreAI
+copyright: Copyright © 2024 CoreAI
 
 protocols:
-  - name: zhlxUi Protocol
+  - name: CoreAI Protocol
     schemes:
-      - zhlxui
+      - coreai
 
 asar:
   smartUnpack: true
@@ -172,17 +172,17 @@ linux:
   icon: resources/app.png
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
   category: Utility
-  maintainer: aionui
-  vendor: aionui
+  maintainer: coreai
+  vendor: coreai
   synopsis: ${description}
   description: ${description}
   desktop:
     entry:
-      Name: AionUi
+      Name: CoreAI
       Comment: ${description}
-      Icon: aionui
+      Icon: coreai
       Categories: Office;Utility;
-      MimeType: x-scheme-handler/aionui;
+      MimeType: x-scheme-handler/coreai;
 
 npmRebuild: false
 buildDependenciesFromSource: false

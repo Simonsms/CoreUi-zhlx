@@ -1,7 +1,7 @@
 {
-  "name": "zhlxUi",
-  "short_name": "zhlxUi",
-  "description": "zhlxUi - 中核华辉 AI 决策支持协作平台",
+  "name": "CoreAI",
+  "short_name": "CoreAI",
+  "description": "CoreAI - 中核龙信 AI 智能协作平台",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -45,7 +45,7 @@ export class DecisionTcpServer {
   getStdioConfig(): StdioMcpConfig {
     const scriptPath = path.join(resolveMcpScriptDir(), 'decision-mcp-stdio.js');
     return {
-      name: 'zhlxui-decision',
+      name: 'coreai-decision',
       command: 'node',
       args: [scriptPath],
       env: [

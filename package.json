@@ -1,11 +1,11 @@
 {
-  "name": "zhlxUi",
+  "name": "coreai",
   "version": "1.9.17",
-  "description": "中核华辉 AI 决策支持协作平台",
+  "description": "CoreAI - 中核龙信 AI 智能协作平台",
   "keywords": [],
   "license": "Apache-2.0",
   "author": {
-    "name": "zhlxUi",
+    "name": "CoreAI",
     "email": "service@aionui.com"
   },
   "main": "./out/main/index.js",
@@ -242,5 +242,5 @@
   "patchedDependencies": {
     "7zip-bin@5.2.0": "patches/7zip-bin@5.2.0.patch"
   },
-  "productName": "zhlxUi"
+  "productName": "CoreAI"
 }

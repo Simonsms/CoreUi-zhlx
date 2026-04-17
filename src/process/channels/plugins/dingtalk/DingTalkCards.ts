@@ -81,8 +81,8 @@ function btn(label: string, action: string, params?: Record<string, string>): Di
  */
 export function createMainMenuCard(): DingTalkCard {
   return {
-    title: 'AionUi Assistant',
-    text: '### AionUi Assistant\n\nWelcome! Choose an action below:',
+    title: 'CoreAI Assistant',
+    text: '### CoreAI Assistant\n\nWelcome! Choose an action below:',
     btnOrientation: '1',
     btns: [
       btn('New Chat', 'session.new'),
@@ -245,11 +245,11 @@ export function createSessionStatusCard(session?: {
  */
 export function createHelpCard(): DingTalkCard {
   return {
-    title: 'AionUi Assistant Help',
+    title: 'CoreAI Assistant Help',
     text: [
-      '### AionUi Assistant Help',
+      '### CoreAI Assistant Help',
       '',
-      'A remote assistant to interact with AionUi via DingTalk.',
+      'A remote assistant to interact with CoreAI via DingTalk.',
       '',
       '**Common Actions:**',
       '- New Chat - Start a new session',

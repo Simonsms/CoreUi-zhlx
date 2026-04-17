@@ -114,7 +114,7 @@ function createDecisionTool(
 // ── Register all decision tools ─────────────────────
 
 const server = new McpServer(
-  { name: 'zhlxui-decision', version: '1.0.0' },
+  { name: 'coreai-decision', version: '1.0.0' },
   { capabilities: { tools: {} } }
 );
 

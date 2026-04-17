@@ -29,7 +29,7 @@ interface TitlebarProps {
 }
 
 const ZhlxLogoMark: React.FC = () => (
-  <img src={zhlxuiLogo} alt='zhlxUi' className='app-titlebar__brand-logo' style={{ width: 20, height: 20, borderRadius: 4 }} />
+  <img src={zhlxuiLogo} alt='CoreAI' className='app-titlebar__brand-logo' style={{ width: 20, height: 20, borderRadius: 4 }} />
 );
 
 // Claude-desktop-style sidebar toggle icon: a rounded rectangle with a vertical divider
@@ -63,7 +63,7 @@ const SidebarIcon: React.FC<{ size?: number; strokeWidth?: number }> = ({ size =
 
 const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const { t } = useTranslation();
-  const appTitle = useMemo(() => 'zhlxUi', []);
+  const appTitle = useMemo(() => 'CoreAI', []);
   const [workspaceCollapsed, setWorkspaceCollapsed] = useState(true);
   const [mobileCenterTitle, setMobileCenterTitle] = useState(appTitle);
   const [mobileCenterOffset, setMobileCenterOffset] = useState(0);

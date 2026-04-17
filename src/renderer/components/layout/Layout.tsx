@@ -456,11 +456,11 @@ const Layout: React.FC<{
                 >
                   <img
                     src={zhlxuiLogo}
-                    alt='zhlxUi'
+                    alt='CoreAI'
                     className='w-full h-full object-cover'
                   />
                 </div>
-                <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>zhlxUi</div>
+                <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>CoreAI</div>
                 {isMobile && !collapsed && (
                   <button
                     type='button'

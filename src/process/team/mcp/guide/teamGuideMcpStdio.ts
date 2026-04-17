@@ -129,7 +129,7 @@ function createAionTool(
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-const server = new McpServer({ name: 'aionui-team-guide', version: '1.0.0' }, { capabilities: { tools: {} } });
+const server = new McpServer({ name: 'coreai-team-guide', version: '1.0.0' }, { capabilities: { tools: {} } });
 
 // ---- aion_create_team ----
 createAionTool(

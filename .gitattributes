@@ -23,3 +23,45 @@
 *.woff binary
 *.woff2 binary
 *.ttf binary
+
+# ── CoreAI 品牌定制文件 ─────────────────────────────────────
+# 上游同步时自动保留本地品牌定制，避免手动解冲突。
+#
+# 图标（二进制）：完全保留本地版本，忽略上游
+resources/app.ico merge=ours
+resources/app.icns merge=ours
+resources/app.png merge=ours
+resources/app_dev.png merge=ours
+resources/icon.png merge=ours
+public/pwa/icon-180.png merge=ours
+public/pwa/icon-192.png merge=ours
+public/pwa/icon-512.png merge=ours
+mobile/assets/images/icon.png merge=ours
+src/renderer/assets/logos/brand/app.png merge=ours
+
+# 文本配置：三方合并 + 冲突处保留本地（上游的非冲突改动正常合入）
+package.json merge=keep-ours-on-conflict
+electron-builder.yml merge=keep-ours-on-conflict
+public/manifest.webmanifest merge=keep-ours-on-conflict
+src/renderer/index.html merge=keep-ours-on-conflict
+src/renderer/components/layout/Titlebar/index.tsx merge=keep-ours-on-conflict
+src/renderer/components/layout/Layout.tsx merge=keep-ours-on-conflict
+src/process/utils/tray.ts merge=keep-ours-on-conflict
+src/common/platform/index.ts merge=keep-ours-on-conflict
+src/process/channels/plugins/dingtalk/DingTalkCards.ts merge=keep-ours-on-conflict
+src/process/webserver/directoryApi.ts merge=keep-ours-on-conflict
+src/process/team/mcp/team/teamMcpStdio.ts merge=keep-ours-on-conflict
+src/process/team/mcp/guide/teamGuideMcpStdio.ts merge=keep-ours-on-conflict
+src/process/agent/gemini/cli/config.ts merge=keep-ours-on-conflict
+src/process/decision/mcp/DecisionTcpServer.ts merge=keep-ours-on-conflict
+src/process/decision/mcp/decisionMcpStdio.ts merge=keep-ours-on-conflict
+src/renderer/components/settings/SettingsModal/contents/AboutModalContent.tsx merge=keep-ours-on-conflict
+mobile/app.config.ts merge=keep-ours-on-conflict
+mobile/package.json merge=keep-ours-on-conflict
+
+# i18n 翻译文件（含品牌名 CoreAI 的模块，覆盖所有语言）
+src/renderer/services/i18n/locales/*/common.json merge=keep-ours-on-conflict
+src/renderer/services/i18n/locales/*/conversation.json merge=keep-ours-on-conflict
+src/renderer/services/i18n/locales/*/cron.json merge=keep-ours-on-conflict
+src/renderer/services/i18n/locales/*/login.json merge=keep-ours-on-conflict
+src/renderer/services/i18n/locales/*/settings.json merge=keep-ours-on-conflict
