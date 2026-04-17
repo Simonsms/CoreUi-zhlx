@@ -56,6 +56,8 @@ interface AcpAgentManagerData {
   presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
   /** 启用的 skills 列表，用于过滤 SkillManager 加载的 skills / Enabled skills list for filtering SkillManager skills */
   enabledSkills?: string[];
+  /** 排除的内置自动注入 skills / Builtin auto-injected skills to exclude */
+  excludeBuiltinSkills?: string[];
   /** Force yolo mode (auto-approve) - used by CronService for scheduled tasks */
   yoloMode?: boolean;
   /** ACP session ID for resume support / ACP session ID 用于会话恢复 */
@@ -435,27 +437,22 @@ ${collectedResponses.join('\n')}`;
     customEnv?: Record<string, string>;
     yoloMode?: boolean;
   }> {
-    if (data.backend === 'custom' && data.customAgentId) {
+    if (data.customAgentId) {
       return this.resolveCustomAgentCliConfig(data);
     }
-    if (data.backend !== 'custom') {
-      return this.resolveBuiltinBackendConfig(data);
-    }
-    // backend === 'custom' but no customAgentId - invalid state
-    mainWarn('[AcpAgentManager]', 'Custom backend specified but customAgentId is missing');
-    return { cliPath: data.cliPath };
+    return this.resolveBuiltinBackendConfig(data);
   }
 
   /**
    * Resolve CLI config for a custom agent backend.
-   * Looks up acp.customAgents by UUID, falling back to extension-contributed adapters.
+   * Looks up assistants config by UUID, falling back to extension-contributed adapters.
    */
   private async resolveCustomAgentCliConfig(data: AcpAgentManagerData): Promise<{
     cliPath?: string;
     customArgs?: string[];
     customEnv?: Record<string, string>;
   }> {
-    const customAgents = await ProcessConfig.get('acp.customAgents');
+    const customAgents = await ProcessConfig.get('assistants');
     let customAgentConfig: CustomAgentLaunchConfig | undefined = customAgents?.find(
       (agent) => agent.id === data.customAgentId
     );
@@ -862,10 +859,8 @@ ${collectedResponses.join('\n')}`;
       }
     }
 
-    const modelInfo = this.agent.getModelInfo();
-    if (modelInfo && modelInfo.availableModels?.length > 0) {
-      void this.cacheModelList(modelInfo);
-    }
+    // Note: model list caching is now handled by AcpAgent.cacheSessionCapabilities()
+    // during start(), so we don't need to call cacheModelList() here.
   }
 
   // ── initAgent ────────────────────────────────────────────────────────
@@ -1012,16 +1007,20 @@ ${collectedResponses.join('\n')}`;
               parts.push(getTeamGuidePrompt(this.options.backend));
             }
             if (parts.length > 0) {
-              contentToSend = `[Assistant Rules - You MUST follow these instructions]\n${parts.join('\n\n')}\n\n[User Request]\n${contentToSend}`;
+              contentToSend = `[Assistant Rules - You MUST follow these instructions]\n${parts.join(
+                '\n\n'
+              )}\n\n[User Request]\n${contentToSend}`;
             }
           } else {
             // Custom workspace or no native support — inject rules + skills via prompt
-            contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
+            const { content: injectedContent } = await prepareFirstMessageWithSkillsIndex(contentToSend, {
               presetContext: this.options.presetContext,
               enabledSkills: this.options.enabledSkills,
+              excludeBuiltinSkills: this.options.excludeBuiltinSkills,
               enableTeamGuide: !isInTeam && (await shouldInjectTeamGuideMcp(this.options.backend)),
               backend: this.options.backend,
             });
+            contentToSend = injectedContent;
           }
         }
 
@@ -1046,7 +1045,9 @@ ${collectedResponses.join('\n')}`;
       const agentSendStart = Date.now();
       const result = await this.sendAgentMessageWithFinishFallback(data);
       console.log(
-        `[ACP-PERF] manager: agent.sendMessage completed ${Date.now() - agentSendStart}ms (total manager.sendMessage: ${Date.now() - managerSendStart}ms)`
+        `[ACP-PERF] manager: agent.sendMessage completed ${Date.now() - agentSendStart}ms (total manager.sendMessage: ${
+          Date.now() - managerSendStart
+        }ms)`
       );
       if (!result.success) {
         this.clearBusyState();
@@ -1259,6 +1260,7 @@ ${collectedResponses.join('\n')}`;
       if (this.persistedModelId) {
         return {
           source: 'models',
+          sourceDetail: 'persisted-model',
           currentModelId: this.persistedModelId,
           currentModelLabel: this.persistedModelId,
           canSwitch: false,
@@ -1345,6 +1347,20 @@ ${collectedResponses.join('\n')}`;
       const sandboxMode = getCodexSandboxModeForSessionMode(mode, this.options.sandboxMode);
       this.options.sandboxMode = sandboxMode;
       await writeCodexSandboxMode(sandboxMode);
+      this.saveSessionMode(mode);
+
+      if (this.isYoloMode(prev) && !this.isYoloMode(mode)) {
+        void this.clearLegacyYoloConfig();
+      }
+      return { success: true, data: { mode: this.currentMode } };
+    }
+
+    // Snow CLI does not support ACP session/set_mode — it returns "Method not found".
+    // Like Codex, manage mode at the Manager layer only.
+    if (this.options.backend === 'snow') {
+      const prev = this.currentMode;
+      this.currentMode = mode;
+      this.yoloMode = this.isYoloMode(mode);
       this.saveSessionMode(mode);
 
       if (this.isYoloMode(prev) && !this.isYoloMode(mode)) {

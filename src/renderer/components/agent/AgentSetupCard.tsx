@@ -16,7 +16,7 @@ import { CheckOne, CloseOne, Loading, Down, Up } from '@icon-park/react';
 import classNames from 'classnames';
 import { ipcBridge } from '@/common';
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
-import type { AcpBackendAll } from '@/common/types/acpTypes';
+import type { AgentBackend } from '@/common/types/acpTypes';
 import type { AgentCheckResult } from '@/renderer/hooks/agent/useAgentReadinessCheck';
 
 // Agent logos
@@ -31,9 +31,10 @@ import DroidLogo from '@/renderer/assets/logos/brand/droid.svg';
 import GooseLogo from '@/renderer/assets/logos/tools/goose.svg';
 import AuggieLogo from '@/renderer/assets/logos/brand/auggie.svg';
 import KimiLogo from '@/renderer/assets/logos/ai-china/kimi.svg';
+import SnowLogo from '@/renderer/assets/logos/tools/coding/snow.png';
 import { applyDefaultConversationName } from '@/renderer/pages/conversation/utils/newConversationName';
 
-const AGENT_LOGOS: Partial<Record<AcpBackendAll, string>> = {
+const AGENT_LOGOS: Partial<Record<AgentBackend, string>> = {
   claude: ClaudeLogo,
   codebuddy: CodeBuddyLogo,
   codex: CodexLogo,
@@ -45,11 +46,12 @@ const AGENT_LOGOS: Partial<Record<AcpBackendAll, string>> = {
   goose: GooseLogo,
   auggie: AuggieLogo,
   kimi: KimiLogo,
+  snow: SnowLogo,
 };
 
 type AgentSetupCardProps = {
   conversationId: string;
-  currentAgent: AcpBackendAll | null;
+  currentAgent: AgentBackend | null;
   error?: string;
   isChecking: boolean;
   progress: number;

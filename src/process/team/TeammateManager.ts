@@ -9,19 +9,15 @@ import type { TeamAgent, TeammateStatus } from './types';
 import { isTeamCapableBackend } from '@/common/types/teamTypes';
 import { ProcessConfig } from '@process/utils/initStorage';
 import type { Mailbox } from './Mailbox';
-import type { TaskManager } from './TaskManager';
 import { buildRolePrompt } from './prompts/buildRolePrompt';
-import { acpDetector } from '@process/agent/acp/AcpDetector';
-
-type SpawnAgentFn = (agentName: string, agentType?: string) => Promise<TeamAgent>;
+import { formatMessages } from './prompts/formatHelpers';
+import { agentRegistry } from '@process/agent/AgentRegistry';
 
 type TeammateManagerParams = {
   teamId: string;
   agents: TeamAgent[];
   mailbox: Mailbox;
-  taskManager: TaskManager;
   workerTaskManager: IWorkerTaskManager;
-  spawnAgent?: SpawnAgentFn;
   hasMcpTools?: boolean;
   teamWorkspace?: string;
   /** Called after an agent is removed from in-memory list, so the caller can persist the change (e.g. update DB) */
@@ -36,9 +32,7 @@ export class TeammateManager extends EventEmitter {
   private readonly teamId: string;
   private agents: TeamAgent[];
   private readonly mailbox: Mailbox;
-  private readonly taskManager: TaskManager;
   private readonly workerTaskManager: IWorkerTaskManager;
-  private readonly spawnAgentFn?: SpawnAgentFn;
   private readonly onAgentRemovedFn?: (teamId: string, agents: TeamAgent[]) => void;
   /** Shared team workspace path (leader's working directory) */
   private readonly teamWorkspace: string | undefined;
@@ -64,9 +58,7 @@ export class TeammateManager extends EventEmitter {
     this.teamId = params.teamId;
     this.agents = [...params.agents];
     this.mailbox = params.mailbox;
-    this.taskManager = params.taskManager;
     this.workerTaskManager = params.workerTaskManager;
-    this.spawnAgentFn = params.spawnAgent;
     this.onAgentRemovedFn = params.onAgentRemoved;
     this.teamWorkspace = params.teamWorkspace;
 
@@ -101,7 +93,7 @@ export class TeammateManager extends EventEmitter {
    */
   async wake(slotId: string): Promise<void> {
     if (this.activeWakes.has(slotId)) {
-      console.log(`[TeammateManager] wake(${slotId}): SKIPPED (activeWakes)`);
+      console.debug(`[TeammateManager] wake(${slotId}): SKIPPED (activeWakes)`);
       return;
     }
 
@@ -117,6 +109,11 @@ export class TeammateManager extends EventEmitter {
       this.finalizedTurns.delete(agent.conversationId);
     }
     try {
+      // Determine if this is the first activation or a crash recovery —
+      // these need the full role prompt with static instructions.
+      // Subsequent wakes only need a lightweight status update.
+      const needsFullPrompt = agent.status === 'pending' || agent.status === 'failed';
+
       // Transition pending -> idle on first activation
       if (agent.status === 'pending') {
         this.setStatus(slotId, 'idle');
@@ -124,15 +121,12 @@ export class TeammateManager extends EventEmitter {
 
       this.setStatus(slotId, 'active');
 
-      const [mailboxMessages, tasks] = await Promise.all([
-        this.mailbox.readUnread(this.teamId, slotId),
-        this.taskManager.list(this.teamId),
-      ]);
+      const mailboxMessages = await this.mailbox.readUnread(this.teamId, slotId);
       const teammates = this.agents.filter((a) => a.slotId !== slotId);
 
       // Write each mailbox message into agent's conversation as user bubble
       // so the UI shows what triggered this agent's response.
-      // Skip for leader: context is already in buildRolePrompt; bubbles would clutter the lead tab.
+      // Skip for leader: messages are included in the prompt sent to the agent.
       if (agent.conversationId && mailboxMessages.length > 0 && agent.role !== 'lead') {
         for (const msg of mailboxMessages) {
           // Skip user messages — already written by TeamSession.sendMessage()
@@ -161,22 +155,51 @@ export class TeammateManager extends EventEmitter {
         }
       }
 
-      // Only show team-capable backends (with cached ACP initialize results) in the leader's available agent types
-      const cachedInitResults = await ProcessConfig.get('acp.cachedInitializeResult');
-      const availableAgentTypes = acpDetector
-        .getDetectedAgents()
-        .filter((a) => isTeamCapableBackend(a.backend, cachedInitResults))
-        .map((a) => ({ type: a.backend, name: a.name }));
+      // Build the message to send to the agent:
+      // - First wake (pending/failed): static role prompt + any mailbox messages
+      // - Subsequent wakes: just the mailbox messages
+      // Agents pull tasks and teammates on demand via team_task_list / team_members MCP tools.
+      let message: string;
+      if (needsFullPrompt) {
+        // Compute availableAgentTypes only for lead's first prompt
+        let availableAgentTypes: Array<{ type: string; name: string }> | undefined;
+        if (agent.role === 'lead') {
+          const cachedInitResults = await ProcessConfig.get('acp.cachedInitializeResult');
+          availableAgentTypes = agentRegistry
+            .getDetectedAgents()
+            .filter((a) => isTeamCapableBackend(a.backend, cachedInitResults))
+            .map((a) => ({
+              type: a.backend,
+              name: a.name,
+            }));
+        }
 
-      const message = buildRolePrompt({
-        agent,
-        mailboxMessages,
-        tasks,
-        teammates,
-        availableAgentTypes,
-        renamedAgents: this.renamedAgents,
-        teamWorkspace: this.teamWorkspace,
-      });
+        const staticPrompt = buildRolePrompt({
+          agent,
+          teammates,
+          availableAgentTypes,
+          renamedAgents: this.renamedAgents,
+          teamWorkspace: this.teamWorkspace,
+        });
+
+        message =
+          mailboxMessages.length > 0
+            ? `${staticPrompt}\n\n## Unread Messages\n${formatMessages(mailboxMessages, this.agents)}`
+            : staticPrompt;
+      } else {
+        // Subsequent wakes: just forward the mailbox messages
+        if (mailboxMessages.length === 0) {
+          // Nothing to send — restore idle status and release wake
+          this.setStatus(slotId, 'idle');
+          this.activeWakes.delete(slotId);
+          return;
+        }
+        message = formatMessages(mailboxMessages, this.agents);
+      }
+
+      console.log(
+        `[TeammateManager] wake(${agent.agentName}): sendPrompt type=${needsFullPrompt ? 'full' : 'messages-only'}, length=${message.length}, preview=${JSON.stringify(message.slice(0, 200))}`
+      );
 
       const agentTask = await this.workerTaskManager.getOrBuildTask(agent.conversationId);
       const msgId = crypto.randomUUID();
@@ -200,16 +223,10 @@ export class TeammateManager extends EventEmitter {
       // deadlock when finish events are lost or finalizeTurn never fires.
       this.activeWakes.delete(slotId);
 
-      // Fallback timeout: if turnCompleted never fires, set idle so the agent
-      // can be woken again. 60s is enough for any reasonable response time.
-      const timeoutHandle = setTimeout(() => {
-        this.wakeTimeouts.delete(slotId);
-        const currentAgent = this.agents.find((a) => a.slotId === slotId);
-        if (currentAgent?.status === 'active') {
-          this.setStatus(slotId, 'idle', 'Wake timed out');
-        }
-      }, TeammateManager.WAKE_TIMEOUT_MS);
-      this.wakeTimeouts.set(slotId, timeoutHandle);
+      // Arm the inactivity watchdog. Any streaming output from this agent
+      // resets it via handleResponseStream → resetWakeTimeout. It only fires
+      // when the agent has been silent for WAKE_TIMEOUT_MS with no finish event.
+      this.resetWakeTimeout(slotId);
     } catch (error) {
       console.error(`[TeammateManager] wake(${slotId}) failed:`, error);
       this.setStatus(slotId, 'failed');
@@ -272,6 +289,76 @@ export class TeammateManager extends EventEmitter {
     // Detect terminal stream messages and trigger turn completion.
     if (msg.type === 'finish' || msg.type === 'error') {
       void this.finalizeTurn(msg.conversation_id);
+      return;
+    }
+
+    // Heartbeat: any non-terminal streaming activity (text, tool calls, thoughts)
+    // proves the agent is still alive. Reset the inactivity watchdog so a genuinely
+    // long-running turn (e.g. Codex emitting extended reasoning before its first
+    // team_send_message) isn't prematurely declared dead.
+    if (agent.status === 'active' && this.wakeTimeouts.has(agent.slotId)) {
+      this.resetWakeTimeout(agent.slotId);
+    }
+  }
+
+  /**
+   * (Re)arm the inactivity watchdog for an agent's current wake.
+   * Fired from wake() after dispatching the prompt, and from handleResponseStream
+   * whenever fresh streaming activity arrives. When it finally fires (agent silent
+   * for WAKE_TIMEOUT_MS), escalates to handleInactivityTimeout so the lead learns
+   * about the stall instead of the agent dropping silently to idle.
+   */
+  private resetWakeTimeout(slotId: string): void {
+    const existing = this.wakeTimeouts.get(slotId);
+    if (existing) clearTimeout(existing);
+
+    const timeoutHandle = setTimeout(() => {
+      this.wakeTimeouts.delete(slotId);
+      const currentAgent = this.agents.find((a) => a.slotId === slotId);
+      if (currentAgent?.status === 'active') {
+        void this.handleInactivityTimeout(currentAgent);
+      }
+    }, TeammateManager.WAKE_TIMEOUT_MS);
+    this.wakeTimeouts.set(slotId, timeoutHandle);
+  }
+
+  /**
+   * A teammate went silent for WAKE_TIMEOUT_MS with no streaming activity and no
+   * finish event. Treat it as a soft failure: mark the agent 'failed' (not 'idle',
+   * which hides the problem), write an explanatory message into the lead's mailbox,
+   * and wake the lead so it can decide the next move (retry, replace, escalate).
+   *
+   * Previously the timeout just setStatus(slotId, 'idle'), which left the lead
+   * unaware — it would eventually re-wake on some other signal and guess that
+   * the teammate was "空转" (idle) with no concrete evidence.
+   */
+  private async handleInactivityTimeout(agent: TeamAgent): Promise<void> {
+    const timeoutSeconds = Math.floor(TeammateManager.WAKE_TIMEOUT_MS / 1000);
+    const reason = `stopped responding after ${timeoutSeconds}s without sending any update`;
+
+    console.warn(`[TeammateManager] ${agent.agentName} (${agent.slotId}) ${reason}`);
+    this.setStatus(agent.slotId, 'failed', reason);
+
+    // Don't escalate to lead if the stuck agent IS the lead — nobody to notify.
+    if (agent.role === 'lead') return;
+
+    const leadAgent = this.agents.find((a) => a.role === 'lead');
+    if (!leadAgent) return;
+
+    try {
+      await this.mailbox.write({
+        teamId: this.teamId,
+        toAgentId: leadAgent.slotId,
+        fromAgentId: agent.slotId,
+        type: 'idle_notification',
+        content:
+          `Teammate ${agent.agentName} (${agent.agentType}) ${reason}. ` +
+          `Their session may be stuck or the model may be generating an overlong silent turn. ` +
+          `Decide whether to retry by sending them a fresh message, replace them with another agent, or continue without them.`,
+      });
+      await this.wake(leadAgent.slotId);
+    } catch (err) {
+      console.error('[TeammateManager] Failed to notify lead of inactivity timeout:', err);
     }
   }
 

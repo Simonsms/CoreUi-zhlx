@@ -18,6 +18,8 @@ const configStorageMock = vi.hoisted(() => ({
   set: vi.fn().mockResolvedValue(undefined),
 }));
 
+const defaultCodexModels = vi.hoisted(() => [] as Array<{ id: string; label: string }>);
+
 const ipcMock = vi.hoisted(() => ({
   getAvailableAgents: vi.fn(),
   refreshCustomAgents: vi.fn().mockResolvedValue(undefined),
@@ -54,7 +56,7 @@ vi.mock('../../src/common/config/presets/assistantPresets', () => ({
 }));
 
 vi.mock('../../src/common/types/codex/codexModels', () => ({
-  DEFAULT_CODEX_MODELS: [],
+  DEFAULT_CODEX_MODELS: defaultCodexModels,
 }));
 
 let swrData: Record<string, unknown> = {};
@@ -105,7 +107,7 @@ const PRESET_AGENT_ID = 'cowork';
 const AVAILABLE_AGENTS: AvailableAgent[] = [
   { backend: 'gemini', name: 'Gemini' },
   { backend: 'claude', name: 'Claude' },
-  { backend: 'custom', name: 'Cowork Assistant', customAgentId: PRESET_AGENT_ID, isPreset: true },
+  { backend: 'claude', name: 'Cowork Assistant', customAgentId: PRESET_AGENT_ID, isPreset: true },
 ];
 
 const CUSTOM_AGENTS: AcpBackendConfig[] = [
@@ -160,7 +162,7 @@ function setupMocks(overrides?: {
     switch (key) {
       case 'acp.cachedModels':
         return cachedModels;
-      case 'acp.customAgents':
+      case 'assistants':
         return CUSTOM_AGENTS;
       case 'guid.lastSelectedAgent':
         return null;
@@ -169,6 +171,10 @@ function setupMocks(overrides?: {
       case 'gemini.config':
         return geminiConfig;
       case 'gemini.defaultModel':
+        return null;
+      case 'aionrs.config':
+        return null;
+      case 'aionrs.defaultModel':
         return null;
       default:
         return null;
@@ -184,6 +190,7 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSwrCache();
+    defaultCodexModels.length = 0;
     setupMocks();
   });
 
@@ -339,5 +346,29 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
       expect(savedConfig).toHaveProperty('claude');
       expect((savedConfig.claude as Record<string, unknown>).preferredMode).toBe('bypassPermissions');
     });
+  });
+
+  it('uses default codex models when codex has no cached list', async () => {
+    defaultCodexModels.push({ id: 'gpt-5', label: 'GPT-5' }, { id: 'gpt-5-mini', label: 'GPT-5 Mini' });
+    setupMocks({ cachedModels: {}, acpConfig: {} });
+
+    const { result } = renderHook(() => useGuidAgentSelection(hookOptions));
+
+    await waitFor(() => {
+      expect(result.current.availableAgents).toBeDefined();
+    });
+
+    act(() => {
+      result.current.setSelectedAgentKey('codex');
+    });
+
+    await waitFor(() => {
+      expect(result.current.currentAcpCachedModelInfo?.currentModelId).toBe('gpt-5');
+    });
+
+    expect(result.current.currentAcpCachedModelInfo?.availableModels).toEqual([
+      { id: 'gpt-5', label: 'GPT-5' },
+      { id: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    ]);
   });
 });

@@ -17,6 +17,7 @@ import StageAgentModal from './components/StageAgentModal';
 import type { StageAgentSelection } from './components/StageAgentModal';
 import type { DecisionStage } from '@process/decision/types';
 import { STAGE_ORDER } from '@process/decision/types';
+import type { AgentBackend } from '@/common/types/acpTypes';
 import { STAGE_LABELS, STAGE_PROMPTS, buildSessionContext } from '../constants';
 import { resolveModelForConversationType } from '../utils/resolveModel';
 
@@ -35,7 +36,7 @@ async function createStageConversation(
   agentSelection?: StageAgentSelection
 ): Promise<string> {
   const conversationType = agentSelection?.conversationType ?? 'acp';
-  const backend = agentSelection?.agentType ?? 'codex';
+  const backend = (agentSelection?.agentType ?? 'codex') as AgentBackend;
   const model = await resolveModelForConversationType(conversationType);
 
   // 获取前序上下文摘要，注入到 prompt 中，AI 不需要手动调用 decision_get_context_summary

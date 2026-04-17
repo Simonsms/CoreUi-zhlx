@@ -11,7 +11,7 @@ import { TaskManager } from './TaskManager';
 import { TeammateManager } from './TeammateManager';
 import { TeamMcpServer, type StdioMcpConfig } from './mcp/team/TeamMcpServer';
 
-type SpawnAgentFn = (agentName: string, agentType?: string) => Promise<TeamAgent>;
+type SpawnAgentFn = (agentName: string, agentType?: string, model?: string) => Promise<TeamAgent>;
 
 /**
  * Thin coordinator that owns Mailbox, TaskManager, TeammateManager, and MCP server.
@@ -41,9 +41,7 @@ export class TeamSession extends EventEmitter {
       teamId: team.id,
       agents: team.agents,
       mailbox: this.mailbox,
-      taskManager: this.taskManager,
       workerTaskManager,
-      spawnAgent,
       teamWorkspace: team.workspace || undefined,
       onAgentRemoved: (teamId, agents) => {
         void this.repo.update(teamId, { agents, updatedAt: Date.now() });
