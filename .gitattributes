@@ -38,8 +38,16 @@ public/pwa/icon-192.png merge=ours
 public/pwa/icon-512.png merge=ours
 mobile/assets/images/icon.png merge=ours
 src/renderer/assets/logos/brand/app.png merge=ours
+src/renderer/assets/zhlxui-logo.png merge=ours
+
+# 我们独有的脚本：完全保留本地版本
+scripts/sync-upstream.sh merge=ours
+scripts/generate-icons.mjs merge=ours
+scripts/generate-icons.sh merge=ours
 
 # 文本配置：三方合并 + 冲突处保留本地（上游的非冲突改动正常合入）
+.gitattributes merge=keep-ours-on-conflict
+.gitignore merge=keep-ours-on-conflict
 package.json merge=keep-ours-on-conflict
 electron-builder.yml merge=keep-ours-on-conflict
 public/manifest.webmanifest merge=keep-ours-on-conflict
@@ -58,6 +66,8 @@ src/process/decision/mcp/decisionMcpStdio.ts merge=keep-ours-on-conflict
 src/renderer/components/settings/SettingsModal/contents/AboutModalContent.tsx merge=keep-ours-on-conflict
 mobile/app.config.ts merge=keep-ours-on-conflict
 mobile/package.json merge=keep-ours-on-conflict
+src/process/utils/configureChromium.ts merge=keep-ours-on-conflict
+src/renderer/pages/decision/hooks/useDecisionDataSync.ts merge=keep-ours-on-conflict
 
 # i18n 翻译文件（含品牌名 CoreAI 的模块，覆盖所有语言）
 src/renderer/services/i18n/locales/*/common.json merge=keep-ours-on-conflict
