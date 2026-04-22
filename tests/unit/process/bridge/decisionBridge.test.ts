@@ -33,6 +33,7 @@ vi.mock('@/common', () => ({
 function createDecisionService() {
   return {
     listWorkspaces: vi.fn(),
+    listWorkspaceSummaries: vi.fn(),
     createWorkspace: vi.fn(),
     getWorkspace: vi.fn(),
     updateWorkspace: vi.fn(),
@@ -123,5 +124,17 @@ describe('initDecisionBridge', () => {
       sessionId: 'session-1',
       type: 'session_completed',
     });
+  });
+
+  it('registers workspace summary provider and forwards calls to the service', async () => {
+    const { initDecisionBridge } = await import('@process/bridge/decisionBridge');
+    const service = createDecisionService();
+    service.listWorkspaceSummaries.mockResolvedValue([{ workspace: { id: 'workspace-1' } }]);
+
+    initDecisionBridge(service as never);
+
+    const handler = providerMap.get('decision.workspace.listSummary');
+    await expect(handler?.({ userId: 'system' })).resolves.toEqual([{ workspace: { id: 'workspace-1' } }]);
+    expect(service.listWorkspaceSummaries).toHaveBeenCalledWith('system');
   });
 });

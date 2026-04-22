@@ -4,8 +4,8 @@ import { ipcBridge } from '@/common';
 const DEFAULT_USER_ID = 'system';
 
 export function useDecisionWorkspaces() {
-  const { data, error, isLoading, mutate } = useSWR('decision.workspaces', () =>
-    ipcBridge.decision.workspace.list.invoke({ userId: DEFAULT_USER_ID })
+  const { data, error, isLoading, mutate } = useSWR('decision.workspace.summaries', () =>
+    ipcBridge.decision.workspace.listSummary.invoke({ userId: DEFAULT_USER_ID })
   );
 
   const createWorkspace = async (name: string, description?: string) => {
@@ -24,7 +24,7 @@ export function useDecisionWorkspaces() {
   };
 
   return {
-    workspaces: data ?? [],
+    workspaceSummaries: data ?? [],
     error,
     isLoading,
     createWorkspace,

@@ -32,6 +32,24 @@ export type DecisionWorkspace = {
   updatedAt: number;
 };
 
+export type DecisionWorkspaceProgress = {
+  currentStage: DecisionStage | null;
+  completedStages: number;
+  reachedStages: number;
+  totalStages: number;
+  percent: number;
+  status: SessionStatus | 'idle';
+};
+
+export type DecisionWorkspaceSummary = {
+  workspace: DecisionWorkspace;
+  sessionCount: number;
+  completedSessionCount: number;
+  activeSessionCount: number;
+  latestSession: DecisionSession | null;
+  progress: DecisionWorkspaceProgress;
+};
+
 export type DecisionSession = {
   id: string;
   workspaceId: string;

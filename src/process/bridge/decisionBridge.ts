@@ -45,6 +45,9 @@ export function initDecisionBridge(service: DecisionService): void {
   ipcBridge.decision.workspace.list.provider(
     safeDecisionProvider(async (service, p) => service.listWorkspaces(p.userId))
   );
+  ipcBridge.decision.workspace.listSummary.provider(
+    safeDecisionProvider(async (service, p) => service.listWorkspaceSummaries(p.userId))
+  );
   ipcBridge.decision.workspace.create.provider(
     safeDecisionProvider(async (service, p) => service.createWorkspace(p.userId, p.name, p.description))
   );

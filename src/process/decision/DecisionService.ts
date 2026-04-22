@@ -9,6 +9,8 @@ import type {
   DecisionSession,
   DecisionStage,
   DecisionWorkspace,
+  DecisionWorkspaceProgress,
+  DecisionWorkspaceSummary,
   Evidence,
   Insight,
   ResearchItem,
@@ -27,6 +29,34 @@ const STAGE_LABELS: Record<DecisionStage, string> = {
 
 export class DecisionService {
   constructor(private readonly repo: IDecisionRepository) {}
+
+  private buildWorkspaceProgress(session: DecisionSession | null): DecisionWorkspaceProgress {
+    const totalStages = STAGE_ORDER.length;
+    if (!session) {
+      return {
+        currentStage: null,
+        completedStages: 0,
+        reachedStages: 0,
+        totalStages,
+        percent: 0,
+        status: 'idle',
+      };
+    }
+
+    const currentStageIndex = Math.max(STAGE_ORDER.indexOf(session.currentStage), 0);
+    const isCompleted = session.status === 'completed';
+    const reachedStages = isCompleted ? totalStages : currentStageIndex + 1;
+    const completedStages = isCompleted ? totalStages : currentStageIndex;
+
+    return {
+      currentStage: session.currentStage,
+      completedStages,
+      reachedStages,
+      totalStages,
+      percent: Math.round((reachedStages / totalStages) * 100),
+      status: session.status,
+    };
+  }
 
   private async requireSession(sessionId: string): Promise<DecisionSession> {
     const session = await this.repo.findSession(sessionId);
@@ -75,6 +105,26 @@ export class DecisionService {
 
   async listWorkspaces(userId: string): Promise<DecisionWorkspace[]> {
     return this.repo.findAllWorkspaces(userId);
+  }
+
+  async listWorkspaceSummaries(userId: string): Promise<DecisionWorkspaceSummary[]> {
+    const workspaces = await this.repo.findAllWorkspaces(userId);
+
+    return Promise.all(
+      workspaces.map(async (workspace) => {
+        const sessions = await this.repo.findSessionsByWorkspace(workspace.id);
+        const latestSession = sessions[0] ?? null;
+
+        return {
+          workspace,
+          sessionCount: sessions.length,
+          completedSessionCount: sessions.filter((session) => session.status === 'completed').length,
+          activeSessionCount: sessions.filter((session) => session.status === 'active').length,
+          latestSession,
+          progress: this.buildWorkspaceProgress(latestSession),
+        };
+      })
+    );
   }
 
   async updateWorkspace(id: string, updates: Partial<DecisionWorkspace>): Promise<DecisionWorkspace> {

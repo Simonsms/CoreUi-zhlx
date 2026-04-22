@@ -201,4 +201,97 @@ describe('DecisionService stage guards', () => {
     expect(summary).toContain('**弹性办公 + 核心时段重叠** [id=candidate-1]');
     expect(summary).not.toContain('[id=candidate-1] **弹性办公 + 核心时段重叠**');
   });
+
+  it('builds zero-progress workspace summaries when no session exists', async () => {
+    const repo = createRepository(createSession('problem_definition'));
+    vi.mocked(repo.findAllWorkspaces).mockResolvedValue([
+      {
+        id: 'workspace-1',
+        userId: 'system',
+        name: 'Q2 资源配置',
+        description: '',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    vi.mocked(repo.findSessionsByWorkspace).mockResolvedValue([]);
+
+    const service = new DecisionService(repo);
+    const summaries = await service.listWorkspaceSummaries('system');
+
+    expect(summaries).toEqual([
+      {
+        workspace: {
+          id: 'workspace-1',
+          userId: 'system',
+          name: 'Q2 资源配置',
+          description: '',
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        sessionCount: 0,
+        completedSessionCount: 0,
+        activeSessionCount: 0,
+        latestSession: null,
+        progress: {
+          currentStage: null,
+          completedStages: 0,
+          reachedStages: 0,
+          totalStages: 4,
+          percent: 0,
+          status: 'idle',
+        },
+      },
+    ]);
+  });
+
+  it('summarizes latest workspace session progress for homepage cards', async () => {
+    const repo = createRepository(createSession('problem_definition'));
+    vi.mocked(repo.findAllWorkspaces).mockResolvedValue([
+      {
+        id: 'workspace-1',
+        userId: 'system',
+        name: 'Q2 资源配置',
+        description: '',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    vi.mocked(repo.findSessionsByWorkspace).mockResolvedValue([
+      {
+        id: 'session-active',
+        workspaceId: 'workspace-1',
+        currentStage: 'comparison',
+        status: 'active',
+        metadata: {},
+        createdAt: 20,
+        updatedAt: 20,
+      },
+      {
+        id: 'session-completed',
+        workspaceId: 'workspace-1',
+        currentStage: 'convergence',
+        status: 'completed',
+        metadata: {},
+        createdAt: 10,
+        updatedAt: 10,
+      },
+    ]);
+
+    const service = new DecisionService(repo);
+    const [summary] = await service.listWorkspaceSummaries('system');
+
+    expect(summary.sessionCount).toBe(2);
+    expect(summary.completedSessionCount).toBe(1);
+    expect(summary.activeSessionCount).toBe(1);
+    expect(summary.latestSession?.id).toBe('session-active');
+    expect(summary.progress).toEqual({
+      currentStage: 'comparison',
+      completedStages: 2,
+      reachedStages: 3,
+      totalStages: 4,
+      percent: 75,
+      status: 'active',
+    });
+  });
 });
