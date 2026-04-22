@@ -1,6 +1,7 @@
-import React from 'react';
-import { Card, Empty, Tag, Typography } from '@arco-design/web-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Card, Empty, Tag, Typography } from '@arco-design/web-react';
 import { Inbox } from '@icon-park/react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { ipcBridge } from '@/common';
 import type { DecisionStage } from '@process/decision/types';
@@ -13,8 +14,10 @@ type ContextPanelProps = {
 };
 
 const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage }) => {
+  const { t } = useTranslation();
   const showResearch = currentStage === 'research' || currentStage === 'comparison';
   const showCandidates = currentStage === 'comparison' || currentStage === 'convergence';
+  const [isInsightsExpanded, setIsInsightsExpanded] = useState(false);
 
   const { data: researchItems } = useSWR(showResearch ? `decision.research.${sessionId}` : null, () =>
     ipcBridge.decision.research.list.invoke({ sessionId })
@@ -38,6 +41,16 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage }) 
   );
 
   const dimensionNames = new Map((dimensions ?? []).map((d) => [d.id, d.name]));
+  const visibleInsights = useMemo(() => {
+    if (!insights) return [];
+    if (isInsightsExpanded || insights.length <= 5) return insights;
+    return insights.slice(-5);
+  }, [insights, isInsightsExpanded]);
+  const shouldShowInsightToggle = (insights?.length ?? 0) > 5;
+
+  useEffect(() => {
+    setIsInsightsExpanded(false);
+  }, [sessionId]);
 
   return (
     <div className='h-full overflow-auto p-4'>
@@ -179,7 +192,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage }) 
               {insights.length}
             </Tag>
           </Text>
-          {insights.slice(-5).map((insight) => (
+          {visibleInsights.map((insight) => (
             <div key={insight.id} className='mb-2 p-2.5 bg-fill-1 rd-1 border border-color-2'>
               <Text className='text-xs block'>{insight.content}</Text>
               <Tag
@@ -191,6 +204,13 @@ const ContextPanel: React.FC<ContextPanelProps> = ({ sessionId, currentStage }) 
               </Tag>
             </div>
           ))}
+          {shouldShowInsightToggle ? (
+            <div className='flex justify-end'>
+              <Button type='text' size='small' onClick={() => setIsInsightsExpanded((expanded) => !expanded)}>
+                {isInsightsExpanded ? t('common.collapse') : t('common.more')}
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

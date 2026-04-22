@@ -17,7 +17,7 @@ if (app.isPackaged) {
   process.env.PREBUILDS_ONLY = '1';
 }
 import initStorage from './utils/initStorage';
-import './utils/initBridge';
+import { initBridgeServices } from './utils/initBridge';
 import './services/i18n'; // Initialize i18n for main process
 import { getChannelManager } from '@process/channels';
 import { ExtensionRegistry } from '@process/extensions';
@@ -28,6 +28,10 @@ export const initializeProcess = async () => {
 
   await initStorage();
   mark('initStorage');
+
+  // IPC bridges and the Decision module depend on storage being ready.
+  await initBridgeServices();
+  mark('initBridge');
 
   // Initialize Extension Registry (scan and resolve all extensions)
   try {

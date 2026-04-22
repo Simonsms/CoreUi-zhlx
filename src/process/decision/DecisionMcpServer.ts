@@ -71,7 +71,11 @@ export class DecisionMcpTools {
         type: 'object',
         properties: {
           sessionId: { type: 'string', description: '决策会话 ID' },
-          stage: { type: 'string', description: '阶段名', enum: ['problem_definition', 'research', 'comparison', 'convergence'] },
+          stage: {
+            type: 'string',
+            description: '阶段名',
+            enum: ['problem_definition', 'research', 'comparison', 'convergence'],
+          },
         },
         required: ['sessionId', 'stage'],
       },
@@ -134,7 +138,7 @@ export class DecisionMcpTools {
           stageRunId: activeRun.id,
           title: requireString(args, 'title'),
           source: optionalString(args, 'source'),
-          sourceType: (optionalString(args, 'sourceType', 'manual')) as SourceType,
+          sourceType: optionalString(args, 'sourceType', 'manual') as SourceType,
           summary: optionalString(args, 'summary'),
           borrowable: optionalString(args, 'borrowable'),
           notBorrowable: optionalString(args, 'notBorrowable'),
@@ -318,7 +322,11 @@ export class DecisionMcpTools {
         properties: {
           sessionId: { type: 'string', description: '决策会话 ID' },
           content: { type: 'string', description: '洞见内容' },
-          stage: { type: 'string', description: '所属阶段', enum: ['problem_definition', 'research', 'comparison', 'convergence'] },
+          stage: {
+            type: 'string',
+            description: '所属阶段',
+            enum: ['problem_definition', 'research', 'comparison', 'convergence'],
+          },
           importance: { type: 'string', description: '重要程度', enum: ['low', 'medium', 'high'] },
         },
         required: ['sessionId', 'content'],
@@ -330,8 +338,8 @@ export class DecisionMcpTools {
           sessionId,
           stageRunId: activeRun?.id ?? null,
           content: requireString(args, 'content'),
-          stage: (optionalString(args, 'stage', 'problem_definition')) as DecisionStage,
-          importance: (optionalString(args, 'importance', 'medium')) as ImportanceLevel,
+          stage: optionalString(args, 'stage', 'problem_definition') as DecisionStage,
+          importance: optionalString(args, 'importance', 'medium') as ImportanceLevel,
         });
         this.emitChange(sessionId, 'insight_added', insight.id);
         return insight;
@@ -346,7 +354,11 @@ export class DecisionMcpTools {
         type: 'object',
         properties: {
           sessionId: { type: 'string', description: '决策会话 ID' },
-          stage: { type: 'string', description: '阶段名', enum: ['problem_definition', 'research', 'comparison', 'convergence'] },
+          stage: {
+            type: 'string',
+            description: '阶段名',
+            enum: ['problem_definition', 'research', 'comparison', 'convergence'],
+          },
         },
         required: ['sessionId', 'stage'],
       },
@@ -386,8 +398,16 @@ export class DecisionMcpTools {
   }
 
   private emitChange(sessionId: string, type: string, entityId?: string): void {
-    if (sessionId) {
+    if (!sessionId) {
+      return;
+    }
+
+    try {
       ipcBridge.decision.dataChanged.emit({ sessionId, type, entityId });
+    } catch (error) {
+      // Do not fail an MCP write after the database mutation has succeeded only
+      // because the renderer-side refresh notification failed.
+      console.warn('[DecisionMcpServer] Failed to emit dataChanged:', error);
     }
   }
 }

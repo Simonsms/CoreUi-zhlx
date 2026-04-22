@@ -18,8 +18,42 @@ import type {
 } from './types';
 import { STAGE_ORDER } from './types';
 
+const STAGE_LABELS: Record<DecisionStage, string> = {
+  problem_definition: '问题定义',
+  research: '调研发散',
+  comparison: '方案评估',
+  convergence: '决策收敛',
+};
+
 export class DecisionService {
   constructor(private readonly repo: IDecisionRepository) {}
+
+  private async requireSession(sessionId: string): Promise<DecisionSession> {
+    const session = await this.repo.findSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+    return session;
+  }
+
+  private assertStageAllowed(session: DecisionSession, allowedStages: DecisionStage[], actionLabel: string): void {
+    if (allowedStages.includes(session.currentStage)) {
+      return;
+    }
+
+    const allowed = allowedStages.map((stage) => STAGE_LABELS[stage]).join(' / ');
+    throw new Error(`${actionLabel}仅允许在${allowed}阶段执行，当前阶段为${STAGE_LABELS[session.currentStage]}`);
+  }
+
+  private async assertSessionInStage(
+    sessionId: string,
+    allowedStages: DecisionStage[],
+    actionLabel: string
+  ): Promise<DecisionSession> {
+    const session = await this.requireSession(sessionId);
+    this.assertStageAllowed(session, allowedStages, actionLabel);
+    return session;
+  }
 
   // ── Workspace ──────────────────────────────────────
 
@@ -323,9 +357,7 @@ export class DecisionService {
       }
       case 'comparison': {
         const candidates = await this.repo.findCandidatesBySession(sessionId);
-        const scoredCount = candidates.filter(
-          (c) => Object.keys(c.scores).length > 0
-        ).length;
+        const scoredCount = candidates.filter((c) => Object.keys(c.scores).length > 0).length;
         return {
           stage,
           met: scoredCount >= 2,
@@ -388,7 +420,9 @@ export class DecisionService {
     // 决策建议
     if (rec) {
       const chosen = candidates.find((c) => c.id === rec.recommendedOptionId);
-      parts.push(`## 决策建议\n推荐方案：${chosen?.name ?? rec.recommendedOptionId}\n${rec.reasoning.substring(0, 200)}`);
+      parts.push(
+        `## 决策建议\n推荐方案：${chosen?.name ?? rec.recommendedOptionId}\n${rec.reasoning.substring(0, 200)}`
+      );
     }
 
     return parts.join('\n\n');
@@ -470,6 +504,7 @@ export class DecisionService {
 
   // ResearchItem
   async addResearchItem(item: Omit<ResearchItem, 'id' | 'createdAt'>): Promise<ResearchItem> {
+    await this.assertSessionInStage(item.sessionId, ['research'], '添加调研条目');
     return this.repo.createResearchItem({ ...item, id: uuid(), createdAt: Date.now() } as ResearchItem);
   }
 
@@ -487,6 +522,11 @@ export class DecisionService {
 
   // Evidence
   async addEvidence(evidence: Omit<Evidence, 'id' | 'createdAt'>): Promise<Evidence> {
+    const researchItem = await this.repo.findResearchItem(evidence.researchItemId);
+    if (!researchItem) {
+      throw new Error(`Research item ${evidence.researchItemId} not found`);
+    }
+    await this.assertSessionInStage(researchItem.sessionId, ['research'], '添加调研证据');
     return this.repo.createEvidence({ ...evidence, id: uuid(), createdAt: Date.now() } as Evidence);
   }
 
@@ -501,6 +541,7 @@ export class DecisionService {
   // CandidateOption
   async addCandidate(candidate: Omit<CandidateOption, 'id' | 'createdAt' | 'updatedAt'>): Promise<CandidateOption> {
     const now = Date.now();
+    await this.assertSessionInStage(candidate.sessionId, ['research', 'comparison'], '添加候选方案');
     return this.repo.createCandidate({ ...candidate, id: uuid(), createdAt: now, updatedAt: now } as CandidateOption);
   }
 
@@ -509,6 +550,13 @@ export class DecisionService {
   }
 
   async updateCandidate(id: string, updates: Partial<CandidateOption>): Promise<CandidateOption> {
+    if (updates.scores !== undefined) {
+      const candidate = await this.repo.findCandidate(id);
+      if (!candidate) {
+        throw new Error(`Candidate ${id} not found`);
+      }
+      await this.assertSessionInStage(candidate.sessionId, ['comparison'], '候选方案评分');
+    }
     return this.repo.updateCandidate(id, updates);
   }
 
@@ -518,6 +566,7 @@ export class DecisionService {
 
   // ScoreDimension
   async addDimension(dimension: Omit<ScoreDimension, 'id' | 'createdAt'>): Promise<ScoreDimension> {
+    await this.assertSessionInStage(dimension.sessionId, ['comparison'], '设置评估维度');
     return this.repo.createDimension({ ...dimension, id: uuid(), createdAt: Date.now() } as ScoreDimension);
   }
 
@@ -526,15 +575,26 @@ export class DecisionService {
   }
 
   async updateDimension(id: string, updates: Partial<ScoreDimension>): Promise<ScoreDimension> {
+    const dimension = await this.repo.findDimension(id);
+    if (!dimension) {
+      throw new Error(`Dimension ${id} not found`);
+    }
+    await this.assertSessionInStage(dimension.sessionId, ['comparison'], '更新评估维度');
     return this.repo.updateDimension(id, updates);
   }
 
   async deleteDimension(id: string): Promise<void> {
+    const dimension = await this.repo.findDimension(id);
+    if (!dimension) {
+      throw new Error(`Dimension ${id} not found`);
+    }
+    await this.assertSessionInStage(dimension.sessionId, ['comparison'], '删除评估维度');
     return this.repo.deleteDimension(id);
   }
 
   // Recommendation
   async createRecommendation(rec: Omit<DecisionRecommendation, 'id' | 'createdAt'>): Promise<DecisionRecommendation> {
+    await this.assertSessionInStage(rec.sessionId, ['convergence'], '生成决策建议');
     return this.repo.createRecommendation({ ...rec, id: uuid(), createdAt: Date.now() } as DecisionRecommendation);
   }
 
@@ -543,6 +603,11 @@ export class DecisionService {
   }
 
   async updateRecommendation(id: string, updates: Partial<DecisionRecommendation>): Promise<DecisionRecommendation> {
+    const recommendation = await this.repo.findRecommendation(id);
+    if (!recommendation) {
+      throw new Error(`Recommendation ${id} not found`);
+    }
+    await this.assertSessionInStage(recommendation.sessionId, ['convergence'], '更新决策建议');
     return this.repo.updateRecommendation(id, updates);
   }
 

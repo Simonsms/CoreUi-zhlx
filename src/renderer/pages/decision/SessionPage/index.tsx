@@ -17,9 +17,13 @@ import StageAgentModal from './components/StageAgentModal';
 import type { StageAgentSelection } from './components/StageAgentModal';
 import type { DecisionStage } from '@process/decision/types';
 import { STAGE_ORDER } from '@process/decision/types';
-import type { AgentBackend } from '@/common/types/acpTypes';
-import { STAGE_LABELS, STAGE_PROMPTS, buildSessionContext } from '../constants';
+import { STAGE_LABELS } from '../constants';
 import { resolveModelForConversationType } from '../utils/resolveModel';
+import {
+  advanceStageConversation,
+  appendSessionContextToConversationExtra,
+  createDecisionStageConversation,
+} from '../utils/stageConversation';
 
 const TeamChatView = React.lazy(() => import('@/renderer/pages/team/components/TeamChatView'));
 
@@ -29,62 +33,6 @@ type PendingAction = {
   type: 'advance' | 'revert' | 'skip';
   targetStage: DecisionStage;
 };
-
-async function createStageConversation(
-  stage: DecisionStage,
-  sessionId: string,
-  agentSelection?: StageAgentSelection
-): Promise<string> {
-  const conversationType = agentSelection?.conversationType ?? 'acp';
-  const backend = (agentSelection?.agentType ?? 'codex') as AgentBackend;
-  const model = await resolveModelForConversationType(conversationType);
-
-  // 获取前序上下文摘要，注入到 prompt 中，AI 不需要手动调用 decision_get_context_summary
-  let contextPreamble = '';
-  if (stage !== 'problem_definition') {
-    try {
-      const summary = await ipcBridge.decision.analytics.contextSummary.invoke({ sessionId });
-      if (summary) {
-        contextPreamble = `\n\n**前序阶段产出物摘要：**\n${summary}\n`;
-      }
-    } catch {
-      // 获取失败不阻塞，AI 仍可通过工具调用获取
-    }
-  }
-
-  const conversation = await ipcBridge.conversation.create.invoke({
-    type: conversationType,
-    name: `决策会话 - ${STAGE_LABELS[stage]}`,
-    model,
-    extra: {
-      backend,
-      presetContext: STAGE_PROMPTS[stage] + contextPreamble + buildSessionContext(sessionId),
-      // Gemini 使用 presetRules 而非 presetContext
-      presetRules: STAGE_PROMPTS[stage] + contextPreamble + buildSessionContext(sessionId),
-      cliPath: agentSelection?.cliPath,
-      customAgentId: agentSelection?.customAgentId,
-    },
-  });
-
-  // 自动发送启动消息（非首阶段，ACP/Codex/Gemini 均支持）
-  const canAutoSend = stage !== 'problem_definition' && (conversationType === 'acp' || conversationType === 'codex' || conversationType === 'gemini');
-  if (canAutoSend) {
-    const autoMessage = `请基于前序阶段的产出物，开始「${STAGE_LABELS[stage]}」阶段的分析工作。`;
-    setTimeout(async () => {
-      try {
-        await ipcBridge.conversation.sendMessage.invoke({
-          conversation_id: conversation.id,
-          input: autoMessage,
-          msg_id: uuid(),
-        });
-      } catch {
-        // 非关键路径，静默处理
-      }
-    }, 2000);
-  }
-
-  return conversation.id;
-}
 
 const SessionPageInner: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -102,15 +50,15 @@ const SessionPageInner: React.FC = () => {
     void (async () => {
       try {
         const conv = await ipcBridge.conversation.get.invoke({ id: firstRun.conversationId });
-        const context = (conv?.extra as { presetContext?: string })?.presetContext ?? '';
-        if (context && !context.includes('当前决策会话 ID')) {
+        const nextExtra = appendSessionContextToConversationExtra(
+          conv?.extra as Record<string, unknown> | undefined,
+          session.id
+        );
+        if (nextExtra) {
           await ipcBridge.conversation.update.invoke({
             id: firstRun.conversationId,
             updates: {
-              extra: {
-                ...conv?.extra,
-                presetContext: context + buildSessionContext(session.id),
-              },
+              extra: nextExtra,
             },
           });
         }
@@ -187,14 +135,88 @@ const SessionPageInner: React.FC = () => {
       const { type, targetStage } = pendingAction;
 
       try {
-        const convId = await createStageConversation(targetStage, session.id, selection);
         if (type === 'advance') {
-          await advanceStage(convId);
+          await advanceStageConversation(
+            {
+              stage: targetStage,
+              sessionId: session.id,
+              agentSelection: selection,
+            },
+            {
+              resolveModel: resolveModelForConversationType,
+              createConversation: (payload) => ipcBridge.conversation.create.invoke(payload),
+              updateConversation: async (conversationId, extra, options) => {
+                await ipcBridge.conversation.update.invoke({
+                  id: conversationId,
+                  updates: { extra },
+                  mergeExtra: options?.mergeExtra,
+                });
+              },
+              getContextSummary: async (sessionId) => ipcBridge.decision.analytics.contextSummary.invoke({ sessionId }),
+              sendMessage: (payload) => ipcBridge.conversation.sendMessage.invoke(payload),
+              scheduleTask: (task, delayMs) => {
+                setTimeout(() => {
+                  void task();
+                }, delayMs);
+              },
+              advanceStage,
+            }
+          );
           Message.success('已推进到下一阶段');
         } else if (type === 'revert') {
+          const convId = await createDecisionStageConversation(
+            {
+              stage: targetStage,
+              sessionId: session.id,
+              agentSelection: selection,
+            },
+            {
+              resolveModel: resolveModelForConversationType,
+              createConversation: (payload) => ipcBridge.conversation.create.invoke(payload),
+              updateConversation: async (conversationId, extra, options) => {
+                await ipcBridge.conversation.update.invoke({
+                  id: conversationId,
+                  updates: { extra },
+                  mergeExtra: options?.mergeExtra,
+                });
+              },
+              getContextSummary: async (sessionId) => ipcBridge.decision.analytics.contextSummary.invoke({ sessionId }),
+              sendMessage: (payload) => ipcBridge.conversation.sendMessage.invoke(payload),
+              scheduleTask: (task, delayMs) => {
+                setTimeout(() => {
+                  void task();
+                }, delayMs);
+              },
+            }
+          );
           await revertStage(targetStage, convId);
           Message.success(`已回退到${STAGE_LABELS[targetStage]}`);
         } else if (type === 'skip') {
+          const convId = await createDecisionStageConversation(
+            {
+              stage: targetStage,
+              sessionId: session.id,
+              agentSelection: selection,
+            },
+            {
+              resolveModel: resolveModelForConversationType,
+              createConversation: (payload) => ipcBridge.conversation.create.invoke(payload),
+              updateConversation: async (conversationId, extra, options) => {
+                await ipcBridge.conversation.update.invoke({
+                  id: conversationId,
+                  updates: { extra },
+                  mergeExtra: options?.mergeExtra,
+                });
+              },
+              getContextSummary: async (sessionId) => ipcBridge.decision.analytics.contextSummary.invoke({ sessionId }),
+              sendMessage: (payload) => ipcBridge.conversation.sendMessage.invoke(payload),
+              scheduleTask: (task, delayMs) => {
+                setTimeout(() => {
+                  void task();
+                }, delayMs);
+              },
+            }
+          );
           await skipStage(convId);
           Message.success('已跳过当前阶段');
         }
@@ -305,7 +327,9 @@ const SessionPageInner: React.FC = () => {
                     type='text'
                     size='small'
                     className='text-[13px] px-2'
-                    onClick={() => handleSendPrompt(`请基于前序阶段的产出物，开始「${STAGE_LABELS[displayStage]}」阶段的分析工作。`)}
+                    onClick={() =>
+                      handleSendPrompt(`请基于前序阶段的产出物，开始「${STAGE_LABELS[displayStage]}」阶段的分析工作。`)
+                    }
                   >
                     <PlayOne className='mr-1 text-sm' /> 开始分析
                   </Button>
@@ -315,9 +339,15 @@ const SessionPageInner: React.FC = () => {
                   size='small'
                   className='text-[13px] px-3'
                   style={{ borderRadius: '4px' }}
-                  onClick={() => handleSendPrompt(`请继续完成「${STAGE_LABELS[session.currentStage]}」阶段的工作，确保所有结构化数据都已通过工具调用保存。`)}
+                  onClick={() =>
+                    handleSendPrompt(
+                      `请继续完成「${STAGE_LABELS[session.currentStage]}」阶段的工作，确保所有结构化数据都已通过工具调用保存。`
+                    )
+                  }
                 >
-                  <span className='flex items-center gap-1.5'><Robot className='text-sm' /> 让 AI 继续工作</span>
+                  <span className='flex items-center gap-1.5'>
+                    <Robot className='text-sm' /> 让 AI 继续工作
+                  </span>
                 </Button>
               </div>
             )}

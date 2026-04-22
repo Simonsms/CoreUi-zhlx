@@ -13,26 +13,58 @@ import type { StdioMcpConfig } from './mcp/DecisionTcpServer';
 let mcpTools: DecisionMcpTools | null = null;
 let tcpServer: DecisionTcpServer | null = null;
 let stdioConfig: StdioMcpConfig | null = null;
+let initPromise: Promise<void> | null = null;
 
 export async function initDecisionModule(): Promise<void> {
+  if (mcpTools && tcpServer && stdioConfig) {
+    return;
+  }
+
+  if (initPromise) {
+    return initPromise;
+  }
+
+  initPromise = doInitDecisionModule().catch((error) => {
+    initPromise = null;
+    throw error;
+  });
+
+  return initPromise;
+}
+
+async function doInitDecisionModule(): Promise<void> {
   const aionDb = await getDatabase();
   const driver = aionDb.getDriver();
 
   // 执行独立迁移
   runDecisionMigrations(driver);
 
-  // 初始化 Service + Bridge
+  // 使用局部变量构建模块，只有全部成功后才提交全局状态。
   const repo = new SqliteDecisionRepository(driver);
   const service = new DecisionService(repo);
-  initDecisionBridge(service);
+  const nextMcpTools = new DecisionMcpTools(service);
+  const nextTcpServer = new DecisionTcpServer(nextMcpTools);
 
-  // 初始化 MCP 工具 + TCP Server
-  mcpTools = new DecisionMcpTools(service);
-  tcpServer = new DecisionTcpServer(mcpTools);
-  stdioConfig = await tcpServer.start();
+  try {
+    const nextStdioConfig = await nextTcpServer.start();
+
+    initDecisionBridge(service);
+
+    mcpTools = nextMcpTools;
+    tcpServer = nextTcpServer;
+    stdioConfig = nextStdioConfig;
+  } catch (error) {
+    try {
+      await nextTcpServer.stop();
+    } catch (stopError) {
+      console.error('[Decision] Failed to stop TCP server after init error:', stopError);
+    }
+
+    throw error;
+  }
 
   console.log(
-    `[Decision] Module initialized: ${mcpTools.getToolDefinitions().length} MCP tools, TCP port ${tcpServer.getPort()}`
+    `[Decision] Module initialized: ${nextMcpTools.getToolDefinitions().length} MCP tools, TCP port ${nextTcpServer.getPort()}`
   );
 }
 
@@ -45,10 +77,20 @@ export function getDecisionStdioConfig(): StdioMcpConfig | null {
 }
 
 export async function stopDecisionModule(): Promise<void> {
+  if (initPromise) {
+    try {
+      await initPromise;
+    } catch {
+      // Ignore initialization errors while shutting down.
+    }
+  }
+
   if (tcpServer) {
     await tcpServer.stop();
     tcpServer = null;
   }
   mcpTools = null;
   stdioConfig = null;
+
+  initPromise = null;
 }
