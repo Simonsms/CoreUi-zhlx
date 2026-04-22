@@ -395,13 +395,17 @@ const handleAppReady = async (): Promise<void> => {
   mark('start');
 
   if (!app.isPackaged) {
-    try {
-      const { default: installExtension, REACT_DEVELOPER_TOOLS } = await import('electron-devtools-installer');
-      await installExtension(REACT_DEVELOPER_TOOLS);
-      console.log('[DevTools] React Developer Tools installed');
-    } catch (e) {
-      console.warn('[DevTools] Failed to install React DevTools:', e);
-    }
+    // React DevTools is optional in development. Installing it can hang for tens
+    // of seconds behind a slow network/proxy, so keep startup non-blocking.
+    void (async () => {
+      try {
+        const { default: installExtension, REACT_DEVELOPER_TOOLS } = await import('electron-devtools-installer');
+        await installExtension(REACT_DEVELOPER_TOOLS);
+        console.log('[DevTools] React Developer Tools installed');
+      } catch (e) {
+        console.warn('[DevTools] Failed to install React DevTools:', e);
+      }
+    })();
   }
 
   // CLI mode: print app version and exit immediately (used by CI smoke tests)

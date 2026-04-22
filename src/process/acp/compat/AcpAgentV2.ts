@@ -20,6 +20,7 @@ import { AcpSession, type SessionOptions } from '@process/acp/session/AcpSession
 import { readClaudeModelInfoFromCcSwitch } from '@process/services/ccSwitchModelSource';
 // TODO(ACP Discovery): Re-enable when acp_session persistence is restored.
 // import type { IAcpSessionRepository } from '@process/services/database/IAcpSessionRepository';
+import { getDecisionStdioConfig } from '@process/decision/init';
 import { getTeamGuideStdioConfig } from '@/process/team/mcp/guide/teamGuideSingleton';
 import { waitForMcpReady } from '@/process/team/mcpReadiness';
 import { shouldInjectTeamGuideMcp } from '@/process/team/prompts/teamGuideCapability';
@@ -172,6 +173,21 @@ export class AcpAgentV2 {
           ];
         }
       }
+    }
+
+    // Inject Decision Workbench MCP server for all ACP sessions.
+    const decisionStdioConfig = getDecisionStdioConfig();
+    if (decisionStdioConfig) {
+      const decisionServer: McpServer = {
+        name: decisionStdioConfig.name,
+        command: decisionStdioConfig.command,
+        args: decisionStdioConfig.args,
+        env: decisionStdioConfig.env,
+      };
+      (this.agentConfig as { presetMcpServers?: McpServer[] }).presetMcpServers = [
+        ...(this.agentConfig.presetMcpServers || []),
+        decisionServer,
+      ];
     }
 
     // Load user-configured (builtin) MCP servers from settings, filtered by

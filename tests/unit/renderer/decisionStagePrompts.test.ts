@@ -13,5 +13,11 @@ describe('decision stage prompts', () => {
   it('comparison prompt explicitly forbids generating final recommendations', () => {
     expect(STAGE_PROMPTS.comparison).toContain('严禁');
     expect(STAGE_PROMPTS.comparison).toContain('decision_create_recommendation');
+    expect(STAGE_PROMPTS.comparison).toContain('优先使用候选方案名称');
+  });
+
+  it('convergence prompt asks for names in user-facing output instead of raw UUIDs', () => {
+    expect(STAGE_PROMPTS.convergence).toContain('优先使用候选方案名称');
+    expect(STAGE_PROMPTS.convergence).toContain('UUID');
   });
 });

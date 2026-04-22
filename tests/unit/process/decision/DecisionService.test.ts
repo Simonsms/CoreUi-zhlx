@@ -173,4 +173,32 @@ describe('DecisionService stage guards', () => {
       name: 'option-b',
     });
   });
+
+  it('formats aggregate context summary with candidate names before ids', async () => {
+    const repo = createRepository(createSession('comparison'));
+    vi.mocked(repo.findStageRunsBySession).mockResolvedValue([]);
+    vi.mocked(repo.findResearchItemsBySession).mockResolvedValue([]);
+    vi.mocked(repo.findCandidatesBySession).mockResolvedValue([
+      {
+        id: 'candidate-1',
+        sessionId: 'session-1',
+        name: '弹性办公 + 核心时段重叠',
+        description: '保留异步协作，同时在核心时段进行同步。',
+        pros: [],
+        cons: [],
+        risks: [],
+        constraints: [],
+        scores: {},
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    vi.mocked(repo.findRecommendationBySession).mockResolvedValue(null);
+
+    const service = new DecisionService(repo);
+    const summary = await service.aggregateContextSummary('session-1');
+
+    expect(summary).toContain('**弹性办公 + 核心时段重叠** [id=candidate-1]');
+    expect(summary).not.toContain('[id=candidate-1] **弹性办公 + 核心时段重叠**');
+  });
 });

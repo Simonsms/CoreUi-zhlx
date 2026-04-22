@@ -69,6 +69,7 @@ export const STAGE_PROMPTS: Record<DecisionStage, string> = {
 - 当前阶段只负责比较、评分和风险评估，不输出最终推荐结论，也不宣称已经完成最终决策。
 
 **注意：调用 decision_score_candidate 需要 candidateId（UUID），调用 decision_set_dimensions 后返回的维度也有 ID。这些 ID 从 decision_get_context_summary 的返回值中获取。**
+**对用户展示比较结论时，优先使用候选方案名称，不要只输出 candidateId / UUID。ID 只用于工具调用或内部引用。**
 
 **重要：评估结果必须通过工具调用写入，确保评估维度和评分都已保存。对话只是讨论过程，结构化数据才是最终产出。**`,
 
@@ -84,6 +85,7 @@ export const STAGE_PROMPTS: Record<DecisionStage, string> = {
 5. 完成后调用 decision_check_completion 确认是否满足完成条件
 
 **注意：recommendedOptionId 和 alternativeIds 需要使用候选方案的 UUID，从 decision_get_context_summary 的返回值中获取。**
+**对用户展示最终建议时，优先使用候选方案名称，不要只输出 recommendedOptionId / alternativeIds 的 UUID。ID 只用于工具调用或内部引用。**
 
 **重要：最终决策建议必须通过 decision_create_recommendation 工具正式写入，不要只在对话中口述结论。**`,
 };

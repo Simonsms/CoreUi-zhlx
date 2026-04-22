@@ -399,7 +399,7 @@ export class DecisionService {
     if (items.length > 0) {
       parts.push(
         `## 调研摘要（共 ${items.length} 项）\n` +
-          items.map((i) => `- [id=${i.id}] **${i.title}**: ${(i.summary ?? '').substring(0, 100)}`).join('\n')
+          items.map((i) => `- **${i.title}** [id=${i.id}]: ${(i.summary ?? '').substring(0, 100)}`).join('\n')
       );
     }
 
@@ -411,7 +411,7 @@ export class DecisionService {
             .map((c) => {
               const scoreCount = Object.keys(c.scores).length;
               const scoreInfo = scoreCount > 0 ? `（已评分 ${scoreCount} 维度）` : '（未评分）';
-              return `- [id=${c.id}] **${c.name}**${scoreInfo}: ${(c.description ?? '').substring(0, 100)}`;
+              return `- **${c.name}** [id=${c.id}]${scoreInfo}: ${(c.description ?? '').substring(0, 100)}`;
             })
             .join('\n')
       );
