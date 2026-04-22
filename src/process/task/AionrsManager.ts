@@ -13,7 +13,7 @@ import { teamEventBus } from '@process/team/teamEventBus';
 import type { TProviderWithModel } from '@/common/config/storage';
 import { BaseApprovalStore, type IApprovalKey } from '@/common/chat/approval';
 import { ToolConfirmationOutcome } from '../agent/gemini/cli/tools/tools';
-import { AionrsAgent } from '@process/agent/aionrs';
+import { AionrsAgent, type StdioMcpOption } from '@process/agent/aionrs';
 import type { AionrsCapabilities } from '@process/agent/aionrs/protocol';
 import { getDatabase } from '@process/services/database';
 import { addMessage, addOrUpdateMessage } from '@process/utils/message';
@@ -67,6 +67,12 @@ type AionrsManagerData = {
   sessionMode?: string;
   sessionId?: string;
   resume?: string;
+  teamMcpStdioConfig?: {
+    name: string;
+    command: string;
+    args: string[];
+    env: Array<{ name: string; value: string }>;
+  };
 };
 
 export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
@@ -132,6 +138,18 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
 
     const mergedData = { ...this.data.data, ...sessionArgs };
 
+    // Collect stdio MCP servers to inject. In-team sessions get the team_*
+    // coordination MCP (with slot handshake). Solo sessions get the team-guide
+    // MCP so aion_create_team / aion_list_models are available. Mirrors
+    // GeminiAgentManager's solo branch.
+    const stdioMcpServers: StdioMcpOption[] = [];
+    if (mergedData.teamMcpStdioConfig) {
+      stdioMcpServers.push({ ...mergedData.teamMcpStdioConfig, awaitReady: true });
+    } else {
+      const teamGuide = await this.buildTeamGuideMcpStdioConfig();
+      if (teamGuide) stdioMcpServers.push(teamGuide);
+    }
+
     const agent = new AionrsAgent({
       workspace: mergedData.workspace,
       model: mergedData.model,
@@ -142,12 +160,49 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
       maxTurns: mergedData.maxTurns,
       sessionId: mergedData.sessionId,
       resume: mergedData.resume,
+      stdioMcpServers,
       onStreamEvent: (event) => this.emit('aionrs.message', event),
     });
 
     await agent.start();
     this.agent = agent;
     this._capabilities = agent.capabilities ?? null;
+
+    if (this.data.data.teamMcpStdioConfig) {
+      const { notifyMcpReady } = await import('@process/team/mcpReadiness');
+      const slotId = this.data.data.teamMcpStdioConfig.env?.find((e) => e.name === 'TEAM_AGENT_SLOT_ID')?.value;
+      if (slotId) {
+        notifyMcpReady(slotId);
+      }
+    }
+  }
+
+  /**
+   * Build the team-guide MCP stdio config for a solo aionrs session, or return
+   * undefined when the agent is in a team (team_* MCP takes precedence) or when
+   * the team-guide service hasn't started.
+   */
+  private async buildTeamGuideMcpStdioConfig(): Promise<
+    { name: string; command: string; args: string[]; env: Array<{ name: string; value: string }> } | undefined
+  > {
+    if (this.data.data.teamMcpStdioConfig) return undefined;
+    const [{ shouldInjectTeamGuideMcp }, { getTeamGuideStdioConfig }] = await Promise.all([
+      import('@process/team/prompts/teamGuideCapability'),
+      import('@process/team/mcp/guide/teamGuideSingleton'),
+    ]);
+    if (!(await shouldInjectTeamGuideMcp('aionrs'))) return undefined;
+    const base = getTeamGuideStdioConfig();
+    if (!base) return undefined;
+    return {
+      name: base.name,
+      command: base.command,
+      args: base.args,
+      env: [
+        ...base.env,
+        { name: 'AION_MCP_BACKEND', value: 'aionrs' },
+        { name: 'AION_MCP_CONVERSATION_ID', value: this.conversation_id },
+      ],
+    };
   }
 
   async stop() {
@@ -160,13 +215,13 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
     }
   }
 
-  async sendMessage(data: { input: string; msg_id: string; files?: string[] }) {
+  async sendMessage(data: { content: string; msg_id: string; files?: string[] }) {
     const message: TMessage = {
       id: data.msg_id,
       type: 'text',
       position: 'right',
       conversation_id: this.conversation_id,
-      content: { content: data.input },
+      content: { content: data.content },
     };
     addMessage(this.conversation_id, message);
     try {
@@ -182,7 +237,7 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
     this._messageSentAt = Date.now();
     mainLog('[AionrsManager]', `message sent: msg_id=${data.msg_id}`);
     if (this.agent) {
-      await this.agent.send(data.input, data.msg_id, data.files);
+      await this.agent.send(data.content, data.msg_id, data.files);
     }
   }
 
@@ -646,7 +701,7 @@ export class AionrsManager extends BaseAgentManager<AionrsManagerData, string> {
       if (collectedResponses.length > 0) {
         const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
         await this.sendMessage({
-          input: feedbackMessage,
+          content: feedbackMessage,
           msg_id: uuid(),
         });
       }

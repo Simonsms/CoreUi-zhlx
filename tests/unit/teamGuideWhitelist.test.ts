@@ -53,6 +53,10 @@ describe('team guide MCP injection capability check', () => {
     it('injects for gemini backend (known team-capable)', async () => {
       expect(await shouldInjectTeamGuideMcp('gemini')).toBe(true);
     });
+
+    it('injects for aionrs backend (known team-capable)', async () => {
+      expect(await shouldInjectTeamGuideMcp('aionrs')).toBe(true);
+    });
   });
 
   describe('blocked backends — should NOT inject team guide MCP', () => {
@@ -62,14 +66,6 @@ describe('team guide MCP injection capability check', () => {
 
     it('does not inject for opencode backend (no cached init result)', async () => {
       expect(await shouldInjectTeamGuideMcp('opencode')).toBe(false);
-    });
-
-    it('does not inject for iflow backend (no cached init result)', async () => {
-      expect(await shouldInjectTeamGuideMcp('iflow')).toBe(false);
-    });
-
-    it('does not inject for aionrs backend (no cached init result)', async () => {
-      expect(await shouldInjectTeamGuideMcp('aionrs')).toBe(false);
     });
 
     it('does not inject for cursor backend (no cached init result)', async () => {
@@ -95,6 +91,20 @@ describe('team guide MCP injection capability check', () => {
       expect(prompt).toContain('ask at most once whether the user wants to bring in a Team');
       expect(prompt).toContain('| Leader | Coordinate and review | gemini |');
       expect(prompt).not.toContain('Task spans multiple files, modules, or domains');
+    });
+
+    it('labels the Leader row with the preset assistant name when one is active', () => {
+      const prompt = getTeamGuidePrompt({ backend: 'gemini', leaderLabel: 'Word Creator' });
+
+      expect(prompt).toContain('| Leader | Coordinate and review | Word Creator (gemini) |');
+      // Other roles keep backend-only labels so the leader stays visually distinct.
+      expect(prompt).toContain('| Developer | Implement features | gemini |');
+      expect(prompt).toContain('| Tester | Write and run tests | gemini |');
+    });
+
+    it('accepts a legacy string backend for backward compatibility', () => {
+      const prompt = getTeamGuidePrompt('claude');
+      expect(prompt).toContain('| Leader | Coordinate and review | claude |');
     });
 
     it('requires explicit user intent or explicit approval before creating a team', () => {

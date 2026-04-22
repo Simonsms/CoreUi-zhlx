@@ -105,10 +105,6 @@ vi.mock('@/renderer/styles/colors', () => ({
 }));
 
 // Stub child components not under test
-vi.mock('@/renderer/pages/team/components/AddAgentModal', () => ({
-  default: () => null,
-}));
-
 vi.mock('@/renderer/pages/team/components/AgentStatusBadge', () => ({
   default: ({ status }: { status: string }) => React.createElement('span', { 'data-testid': 'status-badge' }, status),
 }));
@@ -203,7 +199,7 @@ function makeAgents(): TeamAgent[] {
     {
       slotId: 'slot-lead',
       conversationId: 'conv-lead',
-      role: 'lead',
+      role: 'leader',
       agentType: 'acp',
       agentName: 'Leader',
       conversationType: 'acp',
@@ -225,7 +221,7 @@ function makeTeam(): TTeam {
   return {
     id: 'team-1',
     name: 'Test Team',
-    leadAgentId: 'slot-lead',
+    leaderAgentId: 'slot-lead',
     agents: makeAgents(),
     createdAt: 1,
     updatedAt: 1,
@@ -325,7 +321,7 @@ describe('TeamTabsContext', () => {
           defaultActiveSlotId: 'slot-lead',
           teamId: 'team-1',
         },
-        React.createElement(TeamTabs, { onAddAgent: vi.fn() })
+        React.createElement(TeamTabs, {})
       )
     );
 
@@ -393,7 +389,7 @@ describe('TeamTabs close button', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders close button for non-lead agents when removeAgent is provided', async () => {
+  it('renders close button for non-leader agents when removeAgent is provided', async () => {
     const mockRemove = vi.fn().mockResolvedValue(undefined);
     const TeamTabs = (await import('@renderer/pages/team/components/TeamTabs')).default;
 
@@ -407,7 +403,7 @@ describe('TeamTabs close button', () => {
           teamId: 'team-1',
           removeAgent: mockRemove,
         },
-        React.createElement(TeamTabs, { onAddAgent: vi.fn() })
+        React.createElement(TeamTabs, {})
       )
     );
 
@@ -415,7 +411,7 @@ describe('TeamTabs close button', () => {
     expect(closeIcons.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('does not render close button for lead agent', async () => {
+  it('does not render close button for leader agent', async () => {
     const mockRemove = vi.fn().mockResolvedValue(undefined);
     const TeamTabs = (await import('@renderer/pages/team/components/TeamTabs')).default;
 
@@ -429,7 +425,7 @@ describe('TeamTabs close button', () => {
           teamId: 'team-1',
           removeAgent: mockRemove,
         },
-        React.createElement(TeamTabs, { onAddAgent: vi.fn() })
+        React.createElement(TeamTabs, {})
       )
     );
 
@@ -437,7 +433,7 @@ describe('TeamTabs close button', () => {
     expect(identities.length).toBe(2);
 
     const closeIcons = screen.getAllByTestId('close-icon');
-    expect(closeIcons.length).toBe(1); // only the non-lead member
+    expect(closeIcons.length).toBe(1); // only the non-leader member
   });
 
   it('calls removeAgent when close button is clicked', async () => {
@@ -454,7 +450,7 @@ describe('TeamTabs close button', () => {
           teamId: 'team-1',
           removeAgent: mockRemove,
         },
-        React.createElement(TeamTabs, { onAddAgent: vi.fn() })
+        React.createElement(TeamTabs, {})
       )
     );
 
@@ -478,7 +474,7 @@ describe('TeamTabs close button', () => {
           defaultActiveSlotId: 'slot-lead',
           teamId: 'team-1',
         },
-        React.createElement(TeamTabs, { onAddAgent: vi.fn() })
+        React.createElement(TeamTabs, {})
       )
     );
 
@@ -502,12 +498,12 @@ describe('TeamPage remove agent', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders remove button for non-lead agent in chat header', async () => {
+  it('renders remove button for non-leader agent in chat header', async () => {
     const TeamPage = (await import('@renderer/pages/team/TeamPage')).default;
 
     render(React.createElement(TeamPage, { team: makeTeam() }));
 
-    // The AgentChatSlot renders CloseSmall for non-lead agents
+    // The AgentChatSlot renders CloseSmall for non-leader agents
     const closeIcons = screen.getAllByTestId('close-icon');
     expect(closeIcons.length).toBeGreaterThanOrEqual(1);
   });

@@ -33,7 +33,7 @@ import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import type { AcpBackendConfig } from './types';
 import { Button, ConfigProvider, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Down, Left, Robot, Write } from '@icon-park/react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
@@ -341,19 +341,30 @@ const GuidPage: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [canExpandDescription, setCanExpandDescription] = useState(false);
 
-  // Reset UI state whenever the user navigates to /guid fresh
-  // (agent selection is preserved via saved preference in useGuidAgentSelection)
-  useEffect(() => {
+  // Reset guid-local UI state before paint so same-route navigations do not
+  // briefly show the previous draft or preset assistant layout.
+  useLayoutEffect(() => {
     guidInput.setInput('');
+    guidInput.setFiles([]);
+    guidInput.setLoading(false);
+    if (!(location.state as { workspace?: string } | null)?.workspace) {
+      guidInput.setDir('');
+    }
     setIsDescriptionExpanded(false);
-  }, [location.key]);
+  }, [guidInput.setDir, guidInput.setFiles, guidInput.setInput, guidInput.setLoading, location.key, location.state]);
 
   // Clear resetAssistant from location.state after the hook has consumed it,
   // so that re-renders don't re-trigger the reset logic.
+  //
+  // Must go through React Router's navigate — raw window.history.replaceState
+  // with `location.pathname` would write the HashRouter virtual path (e.g.
+  // '/guid') into the browser's real URL and strip the leading '#'. On the
+  // next hard reload, the browser would then request '/guid' directly from
+  // the dev server (which has no SPA fallback) and 404.
   useEffect(() => {
     if (!resetAssistantRequested) return;
-    window.history.replaceState(null, '', `${location.pathname}${location.search}${location.hash}`);
-  }, [resetAssistantRequested, location.pathname, location.search, location.hash]);
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [resetAssistantRequested, location.pathname, location.search, location.hash, navigate]);
 
   useEffect(() => {
     const node = descriptionTextRef.current;
@@ -426,7 +437,7 @@ const GuidPage: React.FC = () => {
       const customAgentId = agentSelection.selectedAgentInfo?.customAgentId;
       if (!customAgentId || nextType === currentPresetAgentType) return;
       try {
-        const agents = ((await ConfigStorage.get('assistants')) || []) as AcpBackendConfig[];
+        const agents = ((await ConfigStorage.get('acp.customAgents')) || []) as AcpBackendConfig[];
         const idx = agents.findIndex((a) => a.id === customAgentId);
         if (idx < 0) {
           Message.warning(t('common.failed', { defaultValue: 'Failed' }));
@@ -434,7 +445,7 @@ const GuidPage: React.FC = () => {
         }
         const updated = [...agents];
         updated[idx] = { ...updated[idx], presetAgentType: nextType };
-        await ConfigStorage.set('assistants', updated);
+        await ConfigStorage.set('acp.customAgents', updated);
         await agentSelection.refreshCustomAgents();
         const agentName = ACP_BACKENDS_ALL[nextType as keyof typeof ACP_BACKENDS_ALL]?.name || nextType;
         Message.success(t('guid.switchedToAgent', { agent: agentName }));
@@ -467,21 +478,11 @@ const GuidPage: React.FC = () => {
     />
   );
 
-  // AionCLI does not support Google Auth — filter it out
-  const isAionrs = effectiveAgentType === 'aionrs';
-  const filteredModelList = useMemo(
-    () =>
-      isAionrs
-        ? modelSelection.modelList.filter((p) => !p.platform?.toLowerCase().includes('gemini-with-google-auth'))
-        : modelSelection.modelList,
-    [isAionrs, modelSelection.modelList]
-  );
-
   // Build the model selector node
   const modelSelectorNode = (
     <GuidModelSelector
       isGeminiMode={isGeminiMode}
-      modelList={filteredModelList}
+      modelList={modelSelection.modelList}
       currentModel={modelSelection.currentModel}
       setCurrentModel={modelSelection.setCurrentModel}
       geminiModeLookup={modelSelection.geminiModeLookup}
@@ -687,6 +688,7 @@ const GuidPage: React.FC = () => {
               selectedAgentKey={agentSelection.selectedAgentKey}
               getAgentKey={agentSelection.getAgentKey}
               onSelectAgent={handleSelectAgentFromPillBar}
+              suppressSelectionAnimation={resetAssistantRequested}
             />
           ) : null}
 

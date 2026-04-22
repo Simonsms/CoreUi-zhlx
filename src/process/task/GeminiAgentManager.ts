@@ -73,6 +73,7 @@ export class GeminiAgentManager extends BaseAgentManager<
   contextContent?: string;
   enabledSkills?: string[];
   excludeBuiltinSkills?: string[];
+  presetAssistantId?: string;
   private bootstrap: Promise<void>;
 
   /** Fingerprint of MCP config used by the current worker, for change detection */
@@ -157,6 +158,8 @@ export class GeminiAgentManager extends BaseAgentManager<
       };
       /** Builtin skill names to exclude from discovery (e.g. 'cron' for cron-spawned conversations) */
       excludeBuiltinSkills?: string[];
+      /** Preset assistant id backing this conversation — used to label Leader in team guide prompt */
+      presetAssistantId?: string;
     },
     model: TProviderWithModel
   ) {
@@ -168,6 +171,7 @@ export class GeminiAgentManager extends BaseAgentManager<
     this.presetRules = data.presetRules;
     this.enabledSkills = data.enabledSkills;
     this.excludeBuiltinSkills = data.excludeBuiltinSkills;
+    this.presetAssistantId = data.presetAssistantId;
     this.forceYoloMode = data.yoloMode;
     this.currentMode = data.sessionMode || 'default';
     this.webSearchEngine = data.webSearchEngine;
@@ -243,8 +247,12 @@ export class GeminiAgentManager extends BaseAgentManager<
         // so it goes into GEMINI.md and the agent knows when to stay solo vs discuss Team mode.
         let effectivePresetRules = this.presetRules;
         if (!this.teamMcpStdioConfig) {
-          const { getTeamGuidePrompt } = await import('@process/team/prompts/teamGuidePrompt.ts');
-          const teamGuide = getTeamGuidePrompt('gemini');
+          const [{ getTeamGuidePrompt }, { resolveLeaderAssistantLabel }] = await Promise.all([
+            import('@process/team/prompts/teamGuidePrompt.ts'),
+            import('@process/team/prompts/teamGuideAssistant.ts'),
+          ]);
+          const leaderLabel = await resolveLeaderAssistantLabel(this.presetAssistantId);
+          const teamGuide = getTeamGuidePrompt({ backend: 'gemini', leaderLabel });
           effectivePresetRules = effectivePresetRules ? `${effectivePresetRules}\n\n${teamGuide}` : teamGuide;
         }
 
@@ -327,8 +335,13 @@ export class GeminiAgentManager extends BaseAgentManager<
         console.warn('[GeminiAgentManager] Failed to load extension MCP servers:', extError);
       }
 
+      // Only skip when we have NOTHING to inject: no user MCP, no team MCP, and no
+      // aion team-guide MCP. Previously this shortcut fired whenever the user had
+      // no custom MCP and wasn't in a team, which silently dropped the aion_* tools
+      // (aion_create_team / aion_list_models) for every plain preset-assistant chat.
+      const hasAionGuide = !this.teamMcpStdioConfig?.command && Boolean(getTeamGuideStdioConfig()?.command);
       const hasDecisionMcp = Boolean(getDecisionStdioConfig());
-      if (allServers.length === 0 && !this.teamMcpStdioConfig?.command && !hasDecisionMcp) {
+      if (allServers.length === 0 && !this.teamMcpStdioConfig?.command && !hasAionGuide && !hasDecisionMcp) {
         this.mcpFingerprint = '[]';
         return {};
       }

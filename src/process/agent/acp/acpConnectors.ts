@@ -90,7 +90,7 @@ function resolveCodexAcpPlatformPackage(): string | null {
 }
 
 function resolveCodexAcpPlatformPackageSpecifier(packageName: string): string {
-  return process.platform === 'win32' ? `${packageName}@${CODEX_ACP_BRIDGE_VERSION}` : packageName;
+  return `${packageName}@${CODEX_ACP_BRIDGE_VERSION}`;
 }
 
 function resolvePreferredCodexAcpPlatformPackage(): string | null {
@@ -167,21 +167,31 @@ export async function prepareCleanEnv(
     }
   }
 
-  // Redirect bun cache directories from system %TEMP% to userData.
-  // Windows Defender and other antivirus software actively scan %TEMP%,
-  // causing EPERM (NtSetInformationFile) when bun tries to rename files
-  // into its cache during package installation.
-  if (!merged.BUN_INSTALL_CACHE_DIR || !merged.BUN_TMPDIR) {
-    const userDataDir = getPlatformServices().paths.getDataDir();
-    if (!merged.BUN_INSTALL_CACHE_DIR) {
-      merged.BUN_INSTALL_CACHE_DIR = path.join(userDataDir, 'bun-cache');
-    }
-    if (!merged.BUN_TMPDIR) {
-      merged.BUN_TMPDIR = path.join(userDataDir, 'bun-tmp');
-    }
+  // Redirect bun cache AND temp directories out of the system temp folder.
+  // On Windows, antivirus software (e.g. Windows Defender) actively scans
+  // %TEMP%, causing EPERM (NtSetInformationFile) when bun/bunx tries to
+  // rename files.  BUN_INSTALL_CACHE_DIR and BUN_TMPDIR alone are not
+  // enough — bunx creates its working directory (`bunx-<uid>-<pkg>`) under
+  // the OS TMP/TEMP path, so the *source* files of the move operation are
+  // still locked by the antivirus scanner.  Override TMP/TEMP on Windows so
+  // the entire bun file-operation chain stays inside userData.
+  const userDataDir = getPlatformServices().paths.getDataDir();
+  if (!merged.BUN_INSTALL_CACHE_DIR) {
+    merged.BUN_INSTALL_CACHE_DIR = path.join(userDataDir, 'bun-cache');
+  }
+  if (!merged.BUN_TMPDIR) {
+    merged.BUN_TMPDIR = path.join(userDataDir, 'bun-tmp');
+  }
+  if (process.platform === 'win32') {
+    merged.TMP = merged.BUN_TMPDIR;
+    merged.TEMP = merged.BUN_TMPDIR;
   }
   console.log(`[ACP] BUN_INSTALL_CACHE_DIR=${merged.BUN_INSTALL_CACHE_DIR}`);
   console.log(`[ACP] BUN_TMPDIR=${merged.BUN_TMPDIR}`);
+  if (process.platform === 'win32') {
+    console.log(`[ACP] TMP=${merged.TMP}`);
+    console.log(`[ACP] TEMP=${merged.TEMP}`);
+  }
 
   if (customEnv) {
     Object.assign(merged, customEnv);
@@ -366,6 +376,17 @@ export function clearBunxCache(stderr: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Detect bun "moving to cache dir" EPERM failures.
+ * On Windows, antivirus (Windows Defender) locks files during scanning,
+ * causing NtSetInformationFile EPERM when bun tries to rename packages
+ * into the cache directory. A short delay and retry usually succeeds
+ * once the scanner releases the file handle.
+ */
+export function isBunCacheMoveFailed(stderr: string): boolean {
+  return /moving\s+"[^"]+"\s+to cache dir failed[\s\S]*EPERM/i.test(stderr);
 }
 
 // ── Backend-specific connectors ─────────────────────────────────────
@@ -586,12 +607,36 @@ async function connectNpxBackend(config: {
     // transitive deps (known bun issue). Clearing the cache and retrying once
     // forces a fresh install with complete dependencies.
     const errMsg = error instanceof Error ? error.message : '';
+
+    // Retry 1: bunx cache corruption (missing transitive dependencies)
     if (isBunxCacheCorruption(errMsg)) {
       const cleared = clearBunxCache(errMsg);
       if (cleared) {
         console.log(`[ACP ${backend}] Cleared corrupted bunx cache: ${cleared}, retrying...`);
         await setup(spawnNpxBackend(backend, npxPackage, npxCommand, cleanEnv, workingDir, isWindows, false, opts));
         return;
+      }
+    }
+
+    // Retry 2: Windows Defender EPERM on cache move.
+    // Antivirus releases file handles after scanning completes; a short
+    // delay lets the lock clear before the second attempt.
+    if (isBunCacheMoveFailed(errMsg)) {
+      console.warn(`[ACP ${backend}] Bun cache move EPERM (likely antivirus), waiting 2s before retry...`);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        await setup(spawnNpxBackend(backend, npxPackage, npxCommand, cleanEnv, workingDir, isWindows, false, opts));
+        return;
+      } catch (retryError) {
+        await cleanup();
+        const retryMsg = retryError instanceof Error ? retryError.message : '';
+        if (isBunCacheMoveFailed(retryMsg)) {
+          console.error(
+            `[ACP ${backend}] Bun cache move EPERM persists after retry.`,
+            'User may need to add bun-cache directory to antivirus exclusions.'
+          );
+        }
+        throw retryError;
       }
     }
 

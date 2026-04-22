@@ -17,6 +17,21 @@ const AIONRS_PROJECT_CONFIG = '.aionrs.toml';
 
 type StreamEventHandler = (event: { type: string; data: unknown; msg_id: string }) => void;
 
+/**
+ * A stdio-transport MCP server to inject into the aionrs session. Each entry
+ * is forwarded verbatim as an `add_mcp_server` command. `awaitReady` flags
+ * that the server performs a ready handshake (e.g. team coordination MCP
+ * waits for TEAM_AGENT_SLOT_ID registration); leave it false for fire-and-
+ * forget servers like the team-guide bridge.
+ */
+export type StdioMcpOption = {
+  name: string;
+  command: string;
+  args: string[];
+  env: Array<{ name: string; value: string }>;
+  awaitReady?: boolean;
+};
+
 export type AionrsAgentOptions = {
   workspace: string;
   model: TProviderWithModel;
@@ -27,6 +42,12 @@ export type AionrsAgentOptions = {
   maxTurns?: number;
   sessionId?: string;
   resume?: string;
+  /**
+   * Stdio MCP servers to register with the aionrs session after start.
+   * Caller decides which MCPs belong here (team coordination, team-guide,
+   * future project MCPs, etc.) — AionrsAgent just forwards them.
+   */
+  stdioMcpServers?: StdioMcpOption[];
   onStreamEvent: StreamEventHandler;
 };
 
@@ -40,6 +61,8 @@ export class AionrsAgent {
   private options: AionrsAgentOptions;
   private activeMsgId: string | null = null;
   private configBackup: { path: string; content: string | null } | null = null;
+  private mcpReadyPromise: Promise<void>;
+  private mcpReadyResolve!: () => void;
   public sessionId?: string;
   public capabilities?: AionrsCapabilities;
 
@@ -49,6 +72,9 @@ export class AionrsAgent {
     this.readyPromise = new Promise((resolve, reject) => {
       this.readyResolve = resolve;
       this.readyReject = reject;
+    });
+    this.mcpReadyPromise = new Promise((resolve) => {
+      this.mcpReadyResolve = resolve;
     });
   }
 
@@ -127,6 +153,36 @@ export class AionrsAgent {
         return this.start();
       }
       throw err;
+    }
+
+    // Inject stdio MCP servers (must happen before first message). Each entry
+    // is forwarded as `add_mcp_server`; if any entry has `awaitReady: true`,
+    // wait on the handshake before continuing.
+    const stdioMcpServers = this.options.stdioMcpServers ?? [];
+    let awaitAnyReady = false;
+    for (const server of stdioMcpServers) {
+      const envRecord: Record<string, string> = {};
+      for (const { name: k, value: v } of server.env) {
+        envRecord[k] = v;
+      }
+      this.sendCommand({
+        type: 'add_mcp_server',
+        name: server.name,
+        transport: 'stdio',
+        command: server.command,
+        args: server.args,
+        env: envRecord,
+      });
+      if (server.awaitReady) awaitAnyReady = true;
+    }
+
+    if (awaitAnyReady) {
+      await Promise.race([
+        this.mcpReadyPromise,
+        new Promise<void>((_resolve, reject) => setTimeout(() => reject(new Error('MCP ready timeout (30s)')), 30000)),
+      ]).catch((err) => {
+        console.warn('[AionrsAgent] MCP setup warning:', err);
+      });
     }
 
     // Inject preset rules as history context (skip on resume — rules were already injected)
@@ -258,6 +314,10 @@ export class AionrsAgent {
           msg_id: '',
         });
         break;
+
+      case 'mcp_ready':
+        this.mcpReadyResolve();
+        break;
     }
   }
 
@@ -305,12 +365,12 @@ export class AionrsAgent {
     this.childProcess.stdin.write(JSON.stringify(cmd) + '\n');
   }
 
-  async send(input: string, msgId: string, files?: string[]): Promise<void> {
+  async send(content: string, msgId: string, files?: string[]): Promise<void> {
     await this.readyPromise;
     this.sendCommand({
       type: 'message',
       msg_id: msgId,
-      input,
+      content,
       files,
     });
   }

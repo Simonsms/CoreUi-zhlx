@@ -22,18 +22,11 @@ import type {
 } from '@/common/types/acpTypes';
 import { ACP_METHODS, JSONRPC_VERSION, parseInitializeResult } from '@/common/types/acpTypes';
 import type { ChildProcess } from 'child_process';
-import { execFile as execFileCb } from 'child_process';
-import { promisify } from 'util';
 import type { AcpSessionMcpServer } from './mcpSessionConfig';
-import { promises as fs } from 'fs';
-import os from 'os';
 import path from 'path';
-import { getWindowsShellExecutionOptions } from '@process/utils/shellEnv';
-import { connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { connectClaude, connectCodebuddy, connectCodex, spawnGenericBackend } from './acpConnectors';
 import type { SpawnResult } from './acpConnectors';
 import { killChild, readTextFile, writeJsonRpcMessage, writeTextFile } from './utils';
-
-const execFile = promisify(execFileCb);
 
 // Re-export for unit tests that import from this module
 export { createGenericSpawnConfig } from './acpConnectors';
@@ -240,7 +233,6 @@ export class AcpConnection {
         break;
 
       case 'qwen':
-      case 'iflow':
       case 'droid':
       case 'goose':
       case 'auggie':
@@ -808,7 +800,7 @@ export class AcpConnection {
 
     this.parseSessionCapabilities(response);
 
-    console.log(`[ACP ${this.backend}] session/new response:`, JSON.stringify(response, null, 2));
+    // console.log(`[ACP ${this.backend}] session/new response:`, JSON.stringify(response, null, 2));
 
     return response;
   }
@@ -899,7 +891,7 @@ export class AcpConnection {
       this.modes = modesField;
     }
 
-    // Check top-level models first, then fall back to _meta.models (used by iFlow)
+    // Check top-level models first, then fall back to _meta.models (some backends nest models under _meta)
     const modelsSource = result.models || (result._meta as Record<string, unknown> | undefined)?.models;
     if (modelsSource && typeof modelsSource === 'object') {
       this.models = modelsSource as AcpSessionModels;

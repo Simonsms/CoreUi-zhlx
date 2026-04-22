@@ -8,7 +8,6 @@ describe('acpTypes — skillsDirs integration', () => {
       const expectedSkillsDirs: Record<string, string[]> = {
         claude: ['.claude/skills'],
         qwen: ['.qwen/skills'],
-        iflow: ['.iflow/skills'],
         codex: ['.codex/skills'],
         codebuddy: ['.codebuddy/skills'],
         goose: ['.goose/skills'],
@@ -16,6 +15,7 @@ describe('acpTypes — skillsDirs integration', () => {
         droid: ['.factory/skills'],
         vibe: ['.vibe/skills'],
         cursor: ['.cursor/skills'],
+        opencode: ['.opencode/skills'],
       };
 
       for (const [backend, dirs] of Object.entries(expectedSkillsDirs)) {
@@ -26,7 +26,7 @@ describe('acpTypes — skillsDirs integration', () => {
 
     it('should NOT have skillsDirs for backends that use prompt injection', () => {
       // nanobot removed from ACP_BACKENDS_ALL (non-ACP protocol)
-      const promptInjectionBackends = ['opencode', 'auggie', 'copilot', 'qoder', 'kiro'];
+      const promptInjectionBackends = ['auggie', 'copilot', 'qoder', 'kiro'];
       for (const backend of promptInjectionBackends) {
         const config = ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL];
         if (config) {
@@ -48,12 +48,12 @@ describe('acpTypes — skillsDirs integration', () => {
         'codebuddy',
         'codex',
         'qwen',
-        'iflow',
         'goose',
         'droid',
         'kimi',
         'vibe',
         'cursor',
+        'opencode',
         'gemini',
         'aionrs',
       ];
@@ -63,7 +63,7 @@ describe('acpTypes — skillsDirs integration', () => {
     });
 
     it('should return false for backends without skillsDirs', () => {
-      const unsupported = ['opencode', 'auggie', 'copilot', 'qoder', 'kiro'];
+      const unsupported = ['auggie', 'copilot', 'qoder', 'kiro'];
       for (const backend of unsupported) {
         expect(hasNativeSkillSupport(backend), `${backend}`).toBe(false);
       }

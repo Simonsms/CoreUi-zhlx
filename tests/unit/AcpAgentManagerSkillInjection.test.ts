@@ -122,19 +122,7 @@ vi.mock('@process/task/CronCommandDetector', () => ({
 // Mock hasNativeSkillSupport to use real logic for known backends
 vi.mock('@process/utils/initAgent', () => ({
   hasNativeSkillSupport: vi.fn((backend: string | undefined) => {
-    const supported = [
-      'gemini',
-      'claude',
-      'codebuddy',
-      'codex',
-      'qwen',
-      'iflow',
-      'goose',
-      'droid',
-      'kimi',
-      'vibe',
-      'cursor',
-    ];
+    const supported = ['gemini', 'claude', 'codebuddy', 'codex', 'qwen', 'goose', 'droid', 'kimi', 'vibe', 'cursor'];
     return !!backend && supported.includes(backend);
   }),
   setupAssistantWorkspace: vi.fn(),
@@ -240,7 +228,7 @@ describe('AcpAgentManager — first-message skill injection', () => {
 
   it('falls back to prompt injection for unsupported backend regardless of customWorkspace', async () => {
     const manager = createManager({
-      backend: 'opencode',
+      backend: 'auggie',
       customWorkspace: false,
       presetContext: 'Some rules',
       enabledSkills: ['pdf'],
@@ -252,7 +240,7 @@ describe('AcpAgentManager — first-message skill injection', () => {
       presetContext: 'Some rules',
       enabledSkills: ['pdf'],
       enableTeamGuide: false,
-      backend: 'opencode',
+      backend: 'auggie',
     });
   });
 

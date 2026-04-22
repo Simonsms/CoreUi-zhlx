@@ -1,4 +1,5 @@
-import { AcpAgent } from '@process/agent/acp';
+import type { AcpAgent } from '@process/agent/acp';
+import { AcpAgentV2 } from '@process/acp/compat';
 import path from 'path';
 import { channelEventBus } from '@process/channels/agent/ChannelEventBus';
 import { teamEventBus } from '@process/team/teamEventBus';
@@ -53,6 +54,8 @@ interface AcpAgentManagerData {
   customWorkspace?: boolean;
   conversation_id: string;
   customAgentId?: string; // 用于标识特定自定义代理的 UUID / UUID for identifying specific custom agent
+  /** Preset assistant id (builtin or custom) shown in the conversation header / 预设助手 ID */
+  presetAssistantId?: string;
   /** Display name for the agent (from extension or custom config) / Agent 显示名称（来自扩展或自定义配置） */
   agentName?: string;
   presetContext?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant
@@ -86,8 +89,8 @@ type CustomAgentLaunchConfig = Pick<AcpBackendConfig, 'id' | 'name' | 'defaultCl
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
   workspace: string;
-  agent: AcpAgent;
-  private bootstrap: Promise<AcpAgent> | undefined;
+  agent: AcpAgentV2;
+  private bootstrap: Promise<AcpAgentV2> | undefined;
   private bootstrapping: boolean = false;
   private isFirstMessage: boolean = true;
   options: AcpAgentManagerData;
@@ -522,7 +525,6 @@ ${collectedResponses.join('\n')}`;
       const yoloModeValues: Record<string, string> = {
         claude: 'bypassPermissions',
         qwen: 'yolo',
-        iflow: 'yolo',
         codex: 'yolo',
       };
       this.currentMode = yoloModeValues[data.backend] || 'yolo';
@@ -892,7 +894,7 @@ ${collectedResponses.join('\n')}`;
     this.bootstrap = (async () => {
       const { cliPath, customArgs, customEnv, yoloMode } = await this.resolveAgentCliConfig(data);
 
-      this.agent = new AcpAgent({
+      const agentConfig = {
         id: data.conversation_id,
         backend: data.backend,
         cliPath: cliPath,
@@ -926,13 +928,15 @@ ${collectedResponses.join('\n')}`;
         onAvailableCommandsUpdate: (commands: Array<{ name: string; description?: string; hint?: string }>) => {
           this.handleAvailableCommandsUpdate(commands);
         },
-        onStreamEvent: (message) => {
+        onStreamEvent: (message: IResponseMessage) => {
           this.handleStreamEvent(message as IResponseMessage, data.backend);
         },
-        onSignalEvent: async (v) => {
+        onSignalEvent: async (v: IResponseMessage) => {
           await this.handleSignalEvent(v as IResponseMessage, data.backend);
         },
-      });
+      };
+
+      this.agent = new AcpAgentV2(agentConfig);
       return this.agent.start().then(async () => {
         await this.restorePersistedState();
         this.bootstrapping = false;
@@ -1023,8 +1027,14 @@ ${collectedResponses.join('\n')}`;
             const parts: string[] = [];
             if (this.options.presetContext) parts.push(this.options.presetContext);
             if (!isInTeam && (await shouldInjectTeamGuideMcp(this.options.backend))) {
-              const { getTeamGuidePrompt } = await import('@process/team/prompts/teamGuidePrompt.ts');
-              parts.push(getTeamGuidePrompt(this.options.backend));
+              const [{ getTeamGuidePrompt }, { resolveLeaderAssistantLabel }] = await Promise.all([
+                import('@process/team/prompts/teamGuidePrompt.ts'),
+                import('@process/team/prompts/teamGuideAssistant.ts'),
+              ]);
+              const leaderLabel = await resolveLeaderAssistantLabel(
+                this.options.presetAssistantId || this.options.customAgentId
+              );
+              parts.push(getTeamGuidePrompt({ backend: this.options.backend, leaderLabel }));
             }
             if (parts.length > 0) {
               contentToSend = `[Assistant Rules - You MUST follow these instructions]\n${parts.join(
@@ -1039,6 +1049,7 @@ ${collectedResponses.join('\n')}`;
               excludeBuiltinSkills: this.options.excludeBuiltinSkills,
               enableTeamGuide: !isInTeam && (await shouldInjectTeamGuideMcp(this.options.backend)),
               backend: this.options.backend,
+              presetAssistantId: this.options.presetAssistantId || this.options.customAgentId,
             });
             contentToSend = injectedContent;
           }

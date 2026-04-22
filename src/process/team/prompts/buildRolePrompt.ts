@@ -1,12 +1,14 @@
 import type { TeamAgent } from '../types';
-import { buildLeadPrompt } from './leadPrompt';
+import { buildLeaderPrompt } from './leadPrompt';
 import { buildTeammatePrompt } from './teammatePrompt';
 
 type BuildRolePromptParams = {
   agent: TeamAgent;
   teammates: TeamAgent[];
-  /** Only needed for lead prompts */
+  /** Only needed for leader prompts */
   availableAgentTypes?: Array<{ type: string; name: string }>;
+  /** Only needed for leader prompts — preset assistants spawnable via custom_agent_id */
+  availableAssistants?: Array<{ customAgentId: string; name: string; backend: string; description?: string }>;
   renamedAgents?: Map<string, string>;
   teamWorkspace?: string;
 };
@@ -17,24 +19,24 @@ type BuildRolePromptParams = {
  * Agents pull dynamic state on demand via team_* MCP tools.
  */
 export function buildRolePrompt(params: BuildRolePromptParams): string {
-  const { agent, teammates, availableAgentTypes, renamedAgents, teamWorkspace } = params;
+  const { agent, teammates, availableAgentTypes, availableAssistants, renamedAgents, teamWorkspace } = params;
 
-  if (agent.role === 'lead') {
-    return buildLeadPrompt({
+  if (agent.role === 'leader') {
+    return buildLeaderPrompt({
       teammates,
       availableAgentTypes,
+      availableAssistants,
       renamedAgents,
       teamWorkspace,
     });
   }
 
-  // Teammate: find the lead from the full list (teammates array excludes self)
-  const lead = teammates.find((t) => t.role === 'lead');
-  const otherTeammates = teammates.filter((t) => t.role !== 'lead');
+  const leader = teammates.find((t) => t.role === 'leader');
+  const otherTeammates = teammates.filter((t) => t.role !== 'leader');
 
   return buildTeammatePrompt({
     agent,
-    lead: lead ?? agent, // fallback to self if no lead found (should not happen)
+    leader: leader ?? agent,
     teammates: otherTeammates,
     renamedAgents,
     teamWorkspace,
