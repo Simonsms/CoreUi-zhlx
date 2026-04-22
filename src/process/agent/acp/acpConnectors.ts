@@ -135,7 +135,9 @@ function isCodexMetaPackageOptionalDependencyError(errorMessage: string): boolea
  * npm lifecycle vars, and other env vars that interfere with child
  * Node.js processes.
  */
-export async function prepareCleanEnv(): Promise<Record<string, string | undefined>> {
+export async function prepareCleanEnv(
+  customEnv?: Record<string, string | undefined>
+): Promise<Record<string, string | undefined>> {
   const shellEnvStart = Date.now();
   const fullShellEnv = await loadFullShellEnvironment();
   console.log(`[ACP-PERF] connect: shell env loaded ${Date.now() - shellEnvStart}ms`);
@@ -180,6 +182,10 @@ export async function prepareCleanEnv(): Promise<Record<string, string | undefin
   }
   console.log(`[ACP] BUN_INSTALL_CACHE_DIR=${merged.BUN_INSTALL_CACHE_DIR}`);
   console.log(`[ACP] BUN_TMPDIR=${merged.BUN_TMPDIR}`);
+
+  if (customEnv) {
+    Object.assign(merged, customEnv);
+  }
 
   return merged;
 }
@@ -417,8 +423,11 @@ async function prepareClaude(): Promise<NpxPrepareResult> {
 }
 
 /** Prepare clean env + resolve npx + run diagnostics for Codex ACP bridge. */
-async function prepareCodex(codexAcpPackage: string = CODEX_ACP_NPX_PACKAGE): Promise<NpxPrepareResult> {
-  const cleanEnv = await prepareCleanEnv();
+async function prepareCodex(
+  codexAcpPackage: string = CODEX_ACP_NPX_PACKAGE,
+  customEnv?: Record<string, string>
+): Promise<NpxPrepareResult> {
+  const cleanEnv = await prepareCleanEnv(customEnv);
   ensureMinNodeVersion(cleanEnv, 20, 10, 'Codex ACP bridge');
 
   const diagStart = Date.now();
@@ -605,7 +614,11 @@ export function connectClaude(workingDir: string, hooks: NpxConnectHooks): Promi
 }
 
 /** Connect to Codex ACP bridge via npx. */
-export function connectCodex(workingDir: string, hooks: NpxConnectHooks): Promise<void> {
+export function connectCodex(
+  workingDir: string,
+  hooks: NpxConnectHooks,
+  customEnv?: Record<string, string>
+): Promise<void> {
   return (async () => {
     const codexPlatformPackage = resolvePreferredCodexAcpPlatformPackage();
     const preferDirectPackage = codexPlatformPackage !== null && shouldPreferDirectCodexAcpPackage();
@@ -620,7 +633,7 @@ export function connectCodex(workingDir: string, hooks: NpxConnectHooks): Promis
         await connectNpxBackend({
           backend: 'codex',
           npxPackage,
-          prepareFn: () => prepareCodex(npxPackage),
+          prepareFn: () => prepareCodex(npxPackage, customEnv),
           workingDir,
           ...hooks,
         });

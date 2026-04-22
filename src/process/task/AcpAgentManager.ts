@@ -1,4 +1,5 @@
 import { AcpAgent } from '@process/agent/acp';
+import path from 'path';
 import { channelEventBus } from '@process/channels/agent/ChannelEventBus';
 import { teamEventBus } from '@process/team/teamEventBus';
 import { ipcBridge } from '@/common';
@@ -29,6 +30,7 @@ import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainWarn, mainError } from '@process/utils/mainLogger';
 import {
   getCodexSandboxModeForSessionMode,
+  seedCodexHome,
   type CodexSandboxMode,
   writeCodexSandboxMode,
 } from '@process/task/codexConfig';
@@ -499,6 +501,7 @@ ${collectedResponses.join('\n')}`;
   private async resolveBuiltinBackendConfig(data: AcpAgentManagerData): Promise<{
     cliPath?: string;
     customArgs?: string[];
+    customEnv?: Record<string, string>;
     yoloMode?: boolean;
   }> {
     const config = await ProcessConfig.get('acp.config');
@@ -548,16 +551,33 @@ ${collectedResponses.join('\n')}`;
       cliPath = backendConfig.cliCommand;
     }
 
+    let customEnv: Record<string, string> | undefined;
     if (data.backend === 'codex') {
+      const scopedCodexHome = this.resolveScopedCodexHome(data);
+      if (scopedCodexHome) {
+        await seedCodexHome(scopedCodexHome);
+        customEnv = {
+          CODEX_HOME: scopedCodexHome,
+        };
+      }
+
       const sandboxMode = getCodexSandboxModeForSessionMode(
         data.sessionMode || this.currentMode,
         data.sandboxMode || codexConfig?.sandboxMode || 'workspace-write'
       ) as CodexSandboxMode;
-      await writeCodexSandboxMode(sandboxMode);
+      await writeCodexSandboxMode(sandboxMode, scopedCodexHome);
       data.sandboxMode = sandboxMode;
     }
 
-    return { cliPath, customArgs, yoloMode };
+    return { cliPath, customArgs, customEnv, yoloMode };
+  }
+
+  private resolveScopedCodexHome(data: AcpAgentManagerData): string | undefined {
+    if (data.backend !== 'codex' || data.customWorkspace || !data.workspace) {
+      return undefined;
+    }
+
+    return path.join(data.workspace, '.codex');
   }
 
   // ── initAgent callback handlers ──────────────────────────────────────
@@ -1346,7 +1366,7 @@ ${collectedResponses.join('\n')}`;
       this.yoloMode = this.isYoloMode(mode);
       const sandboxMode = getCodexSandboxModeForSessionMode(mode, this.options.sandboxMode);
       this.options.sandboxMode = sandboxMode;
-      await writeCodexSandboxMode(sandboxMode);
+      await writeCodexSandboxMode(sandboxMode, this.resolveScopedCodexHome(this.options));
       this.saveSessionMode(mode);
 
       if (this.isYoloMode(prev) && !this.isYoloMode(mode)) {

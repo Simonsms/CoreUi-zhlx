@@ -236,7 +236,7 @@ export class AcpConnection {
         break;
 
       case 'codex':
-        await connectCodex(workingDir, npxHooks);
+        await connectCodex(workingDir, npxHooks, customEnv);
         break;
 
       case 'qwen':

@@ -5,7 +5,7 @@
  */
 
 import { isCodexNoSandboxMode } from '@/common/types/codex/codexModes';
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'fs/promises';
 import { homedir } from 'os';
 import { dirname, posix, win32 } from 'path';
 
@@ -16,6 +16,8 @@ const isWindowsStylePath = (value: string): boolean => /^[a-zA-Z]:[\\/]/.test(va
 
 const getCodexPathApi = (baseDirectory: string) =>
   process.platform === 'win32' || isWindowsStylePath(baseDirectory) ? win32 : posix;
+
+const CODEX_HOME_SEED_FILES = ['auth.json', 'cap_sid', 'config.toml', 'installation_id'] as const;
 
 export function normalizeCodexSandboxMode(sandboxMode?: CodexSandboxMode | null): SupportedCodexSandboxMode {
   return sandboxMode === 'danger-full-access' ? 'danger-full-access' : 'workspace-write';
@@ -32,18 +34,40 @@ export function getCodexSandboxModeForSessionMode(
   return normalizeCodexSandboxMode(fallbackMode);
 }
 
-export function getCodexConfigPath(): string {
-  const codexHome = process.env.CODEX_HOME?.trim();
-  if (codexHome) {
-    return getCodexPathApi(codexHome).join(codexHome, 'config.toml');
-  }
-
+export function getDefaultCodexHome(): string {
   const homeDirectory = homedir();
-  return getCodexPathApi(homeDirectory).join(homeDirectory, '.codex', 'config.toml');
+  return getCodexPathApi(homeDirectory).join(homeDirectory, '.codex');
 }
 
-export async function writeCodexSandboxMode(sandboxMode: CodexSandboxMode): Promise<void> {
-  const path = getCodexConfigPath();
+export function getCodexConfigPath(codexHome?: string): string {
+  const resolvedCodexHome = codexHome?.trim() || process.env.CODEX_HOME?.trim();
+  if (resolvedCodexHome) {
+    return getCodexPathApi(resolvedCodexHome).join(resolvedCodexHome, 'config.toml');
+  }
+
+  return getCodexPathApi(getDefaultCodexHome()).join(getDefaultCodexHome(), 'config.toml');
+}
+
+export async function seedCodexHome(targetCodexHome: string, options?: { sourceCodexHome?: string }): Promise<void> {
+  const sourceCodexHome = options?.sourceCodexHome?.trim() || getDefaultCodexHome();
+
+  await mkdir(targetCodexHome, { recursive: true });
+
+  for (const fileName of CODEX_HOME_SEED_FILES) {
+    const pathApi = getCodexPathApi(sourceCodexHome);
+    const sourcePath = pathApi.join(sourceCodexHome, fileName);
+    const targetPath = getCodexPathApi(targetCodexHome).join(targetCodexHome, fileName);
+
+    try {
+      await copyFile(sourcePath, targetPath);
+    } catch {
+      // Best effort: missing source files are acceptable for partially configured Codex setups.
+    }
+  }
+}
+
+export async function writeCodexSandboxMode(sandboxMode: CodexSandboxMode, codexHome?: string): Promise<void> {
+  const path = getCodexConfigPath(codexHome);
   let content = '';
 
   try {

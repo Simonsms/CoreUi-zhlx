@@ -297,6 +297,45 @@ describe('connectCodex - Windows diagnostics', () => {
     expect(setup).toHaveBeenCalledTimes(1);
     expect(cleanup).not.toHaveBeenCalled();
   });
+
+  it('propagates CODEX_HOME overrides to codex diagnostics and spawned bridge env', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+
+    const setup = vi.fn().mockResolvedValue(undefined);
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+
+    await (
+      connectCodex as unknown as (
+        workingDir: string,
+        hooks: { setup: typeof setup; cleanup: typeof cleanup },
+        customEnv: Record<string, string>
+      ) => Promise<void>
+    )('C:\\cwd', { setup, cleanup }, { CODEX_HOME: 'C:\\cwd\\.codex' });
+
+    expect(mockExecFile).toHaveBeenNthCalledWith(
+      1,
+      'codex.cmd',
+      ['--version'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PATH: '/usr/bin',
+          CODEX_HOME: 'C:\\cwd\\.codex',
+        }),
+      }),
+      expect.any(Function)
+    );
+
+    expect(mockSpawn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PATH: '/usr/bin',
+          CODEX_HOME: 'C:\\cwd\\.codex',
+        }),
+      })
+    );
+  });
 });
 
 describe('connectClaude - detached process group', () => {
